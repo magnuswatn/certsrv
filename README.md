@@ -52,7 +52,7 @@ csr = x509.CertificateSigningRequestBuilder().subject_name(x509.Name([
 
 # Get the cert from the ADCS server
 pem_req = csr.public_bytes(serialization.Encoding.PEM)
-pem_cert = certsrv.get_cert('my-adcs-server.example.net', pem_req, 'WebServer', 'myUser, 'myPassword')
+pem_cert = certsrv.get_cert('my-adcs-server.example.net', pem_req, 'WebServer', 'myUser', 'myPassword')
 
 # Print the key and the cert
 pem_key = key.private_bytes(
@@ -86,7 +86,7 @@ req.sign(key, 'sha256')
 
 # Get the cert from the ADCS server
 pem_req = OpenSSL.crypto.dump_certificate_request(OpenSSL.crypto.FILETYPE_PEM, req)
-pem_cert = certsrv.get_cert('my-adcs-server.example.net', pem_req, 'WebServer', 'myUser, 'myPassword')
+pem_cert = certsrv.get_cert('my-adcs-server.example.net', pem_req, 'WebServer', 'myUser', 'myPassword')
 
 # Print the key and the cert
 pem_key = OpenSSL.crypto.dump_privatekey(OpenSSL.crypto.FILETYPE_PEM, key)
