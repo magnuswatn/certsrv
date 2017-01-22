@@ -26,6 +26,8 @@ See: https://access.redhat.com/articles/2039753
 ## Example usage:
 Generate a CSR with Cryptography and get a cert from an ADCS server
 ```python
+import certsrv
+
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
