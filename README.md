@@ -96,3 +96,41 @@ pem_key = OpenSSL.crypto.dump_privatekey(OpenSSL.crypto.FILETYPE_PEM, key)
 print('Cert: %s' % pem_cert)
 print('Key: %s' % pem_key)
 ```
+Generate a CSR with pyOpenSSL and get a cert from an ADCS server with a template that requires admin approval
+```python
+import time
+import OpenSSL
+import certsrv
+
+# Generate a key
+key = OpenSSL.crypto.PKey()
+key.generate_key(OpenSSL.crypto.TYPE_RSA, 2048)
+
+# Generate a CSR
+req = OpenSSL.crypto.X509Req()
+req.get_subject().CN='myserver.example.com'
+san = 'DNS: myserver.example.com'
+san_extension = OpenSSL.crypto.X509Extension("subjectAltName", False, san)
+req.add_extensions([san_extension])
+
+req.set_pubkey(key)
+req.sign(key, 'sha256')
+
+# Get the cert from the ADCS server
+pem_req = OpenSSL.crypto.dump_certificate_request(OpenSSL.crypto.FILETYPE_PEM, req)
+try:
+    pem_cert = certsrv.get_cert('my-adcs-server.example.net', pem_req, 'WebServerManual',
+                                'myUser', 'myPassword')
+except certsrv.CertificatePendingException as error:
+    print ('The request needs to be approved by the CA admin.'
+           'The Request Id is %s. She has a minute to approve it...' % error.req_id)
+    time.sleep(60)
+    pem_cert = certsrv.get_existing_cert('my-adcs-server.example.net', error.req_id,
+                                         'myUser', 'myPassword')
+
+# Print the key and the cert
+pem_key = OpenSSL.crypto.dump_privatekey(OpenSSL.crypto.FILETYPE_PEM, key)
+
+print('Cert: %s' % pem_cert)
+print('Key: %s' % pem_key)
+```
