@@ -10,10 +10,10 @@ setup(
     license='MIT',
     url='https://github.com/magnuswatn/certsrv',
     keywords='ad adcs certsrv pki certificate',
-    version='1.0.1',
+    version='1.5.0',
     py_modules=['certsrv'],
     classifiers=[
-        'Development Status :: 4 - Beta',
+        'Development Status :: 5 - Production/Stable',
         'Intended Audience :: System Administrators',
         'Intended Audience :: Developers',
         'License :: OSI Approved :: MIT License',
