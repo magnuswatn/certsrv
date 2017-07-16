@@ -1,6 +1,10 @@
+import os
+from urllib2 import URLError
+
 import pytest
 import certsrv
 import OpenSSL
+
 
 def create_csr():
     key = OpenSSL.crypto.PKey()
@@ -106,4 +110,41 @@ def test_get_chain_der(opt_adcs, opt_username, opt_password):
     # pyOpenSSL does not have an option to parse PKCS#7,
     # so we just check that it is the right encoding
     assert '-----BEGIN CERTIFICATE-----' not in der_chain
- 
+
+# The test cases assume that the system trusts the adcs server certificate.
+# So if these connection attempts fails, it means the custom cafile parameter works
+
+def test_check_credentials_with_wrong_cafile(opt_adcs):
+    dir_path = os.path.dirname(os.path.realpath(__file__))
+    ca_bundle = '%s/test_dummy-ca-cert.pem' % dir_path
+    with pytest.raises(URLError) as excinfo:
+        certsrv.check_credentials(opt_adcs, 'username', 'password', cafile=ca_bundle)
+    assert excinfo.value.reason.reason == 'CERTIFICATE_VERIFY_FAILED'
+
+def test_get_chain_with_wrong_cafile(opt_adcs):
+    dir_path = os.path.dirname(os.path.realpath(__file__))
+    ca_bundle = '%s/test_dummy-ca-cert.pem' % dir_path
+    with pytest.raises(URLError) as excinfo:
+        certsrv.get_chain(opt_adcs, 'username', 'password', cafile=ca_bundle)
+    assert excinfo.value.reason.reason == 'CERTIFICATE_VERIFY_FAILED'
+
+def test_get_ca_cert_with_wrong_cafile(opt_adcs):
+    dir_path = os.path.dirname(os.path.realpath(__file__))
+    ca_bundle = '%s/test_dummy-ca-cert.pem' % dir_path
+    with pytest.raises(URLError) as excinfo:
+        certsrv.get_ca_cert(opt_adcs, 'username', 'password', cafile=ca_bundle)
+    assert excinfo.value.reason.reason == 'CERTIFICATE_VERIFY_FAILED'
+
+def test_get_existing_cert_with_wrong_cafile(opt_adcs):
+    dir_path = os.path.dirname(os.path.realpath(__file__))
+    ca_bundle = '%s/test_dummy-ca-cert.pem' % dir_path
+    with pytest.raises(URLError) as excinfo:
+        certsrv.get_existing_cert(opt_adcs, 1, 'username', 'password', cafile=ca_bundle)
+    assert excinfo.value.reason.reason == 'CERTIFICATE_VERIFY_FAILED'
+
+def test_get_cert_with_wrong_cafile(opt_adcs):
+    dir_path = os.path.dirname(os.path.realpath(__file__))
+    ca_bundle = '%s/test_dummy-ca-cert.pem' % dir_path
+    with pytest.raises(URLError) as excinfo:
+        certsrv.get_cert(opt_adcs, 'fake csr', 'Template', 'username', 'password', cafile=ca_bundle)
+    assert excinfo.value.reason.reason == 'CERTIFICATE_VERIFY_FAILED'
