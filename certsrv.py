@@ -27,7 +27,7 @@ class CertificatePendingException(Exception):
                                  'certificate you requested. Your Request Id is %s.' % req_id)
         self.req_id = req_id
 
-def get_cert(server, csr, template, username, password, encoding='b64'):
+def get_cert(server, csr, template, username, password, encoding='b64', cafile=None):
     """
     Gets a certificate from a Microsoft AD Certificate Services web page.
 
@@ -40,6 +40,7 @@ def get_cert(server, csr, template, username, password, encoding='b64'):
         pasword: The password for authentication
         encoding: The desired encoding for the returned certificate.
                   Possible values are "bin" for binary and "b64" for Base64 (PEM)
+        cafile: A PEM file containing the CA certificates that should be trusted
 
     Returns:
         The issued certificate
@@ -66,7 +67,10 @@ def get_cert(server, csr, template, username, password, encoding='b64'):
     data_encoded = urllib.urlencode(data)
     url = 'https://%s/certsrv/certfnsh.asp' % server
     req = urllib2.Request(url, data_encoded, headers)
-    response = urllib2.urlopen(req)
+    if cafile:
+        response = urllib2.urlopen(req, cafile=cafile)
+    else:
+        response = urllib2.urlopen(req)
     response_page = response.read()
     # We need to parse the Request ID from the returning HTML page
     try:
@@ -83,9 +87,9 @@ def get_cert(server, csr, template, username, password, encoding='b64'):
             except AttributeError:
                 error = 'An unknown error occured'
             raise RequestDeniedException(error, response_page)
-    return get_existing_cert(server, req_id, username, password, encoding)
+    return get_existing_cert(server, req_id, username, password, encoding, cafile)
 
-def get_existing_cert(server, req_id, username, password, encoding='b64'):
+def get_existing_cert(server, req_id, username, password, encoding='b64', cafile=None):
     """
     Gets a certificate that has already been created.
 
@@ -97,6 +101,7 @@ def get_existing_cert(server, req_id, username, password, encoding='b64'):
         pasword: The password for authentication
         encoding: The desired encoding for the returned certificate.
                   Possible values are "bin" for binary and "b64" for Base64 (PEM)
+        cafile: A PEM file containing the CA certificates that should be trusted
 
     Returns:
         The issued certificate
@@ -113,7 +118,11 @@ def get_existing_cert(server, req_id, username, password, encoding='b64'):
     cert_url = 'https://%s/certsrv/certnew.cer?ReqID=%s&Enc=%s' % (server, req_id, encoding)
     cert_req = urllib2.Request(cert_url, headers=headers)
 
-    response = urllib2.urlopen(cert_req)
+    if cafile:
+        response = urllib2.urlopen(cert_req, cafile=cafile)
+    else:
+        response = urllib2.urlopen(cert_req)
+
     response_content = response.read()
     if response.headers.type != 'application/pkix-cert':
         # The response was not a cert. Something must have gone wrong
@@ -125,7 +134,7 @@ def get_existing_cert(server, req_id, username, password, encoding='b64'):
     else:
         return response_content
 
-def get_ca_cert(server, username, password, encoding='b64'):
+def get_ca_cert(server, username, password, encoding='b64', cafile=None):
     """
     Gets the (newest) CA certificate from a Microsoft AD Certificate Services web page.
 
@@ -136,6 +145,7 @@ def get_ca_cert(server, username, password, encoding='b64'):
         pasword: The password for authentication
         encoding: The desired encoding for the returned certificate.
                   Possible values are "bin" for binary and "b64" for Base64 (PEM)
+        cafile: A PEM file containing the CA certificates that should be trusted
 
     Returns:
         The newest CA certificate from the server
@@ -146,7 +156,12 @@ def get_ca_cert(server, username, password, encoding='b64'):
     }
     url = 'https://%s/certsrv/certcarc.asp' % server
     req = urllib2.Request(url, headers=headers)
-    response = urllib2.urlopen(req)
+
+    if cafile:
+        response = urllib2.urlopen(req, cafile=cafile)
+    else:
+        response = urllib2.urlopen(req)
+
     response_page = response.read()
     # We have to check how many renewals this server has had, so that we get the newest CA cert
     renewals = re.search(r'var nRenewals=(\d+);', response_page).group(1)
@@ -154,10 +169,14 @@ def get_ca_cert(server, username, password, encoding='b64'):
                                                                                   renewals,
                                                                                   encoding)
     cert_req = urllib2.Request(cert_url, headers=headers)
-    cert = urllib2.urlopen(cert_req).read()
+    if cafile:
+        cert = urllib2.urlopen(cert_req, cafile=cafile).read()
+    else:
+        cert = urllib2.urlopen(cert_req).read()
+
     return cert
 
-def get_chain(server, username, password, encoding='bin'):
+def get_chain(server, username, password, encoding='bin', cafile=None):
     """
     Gets the chain from a Microsoft AD Certificate Services web page.
 
@@ -168,6 +187,7 @@ def get_chain(server, username, password, encoding='bin'):
         pasword: The password for authentication
         encoding: The desired encoding for the returned certificates.
                   Possible values are "bin" for binary and "b64" for Base64 (PEM)
+        cafile: A PEM file containing the CA certificates that should be trusted
 
     Returns:
         The CA chain from the server, in PKCS#7 format
@@ -179,7 +199,11 @@ def get_chain(server, username, password, encoding='bin'):
     url = 'https://%s/certsrv/certcarc.asp' % server
     req = urllib2.Request(url, headers=headers)
 
-    response = urllib2.urlopen(req)
+    if cafile:
+        response = urllib2.urlopen(req, cafile=cafile)
+    else:
+        response = urllib2.urlopen(req)
+
     response_page = response.read()
     # We have to check how many renewals this server has had, so that we get the newest chain
     renewals = re.search(r'var nRenewals=(\d+);', response_page).group(1)
@@ -187,10 +211,13 @@ def get_chain(server, username, password, encoding='bin'):
                                                                                    renewals,
                                                                                    encoding)
     chain_req = urllib2.Request(chain_url, headers=headers)
-    chain = urllib2.urlopen(chain_req).read()
+    if cafile:
+        chain = urllib2.urlopen(chain_req, cafile=cafile).read()
+    else:
+        chain = urllib2.urlopen(chain_req).read()
     return chain
 
-def check_credentials(server, username, password):
+def check_credentials(server, username, password, cafile=None):
     """
     Checks the specified credentials against the specified ADCS server
 
@@ -199,6 +226,7 @@ def check_credentials(server, username, password):
             Web Enrollment role (must be listening on https)
         username: The username for authentication
         pasword: The password for authentication
+        cafile: A PEM file containing the CA certificates that should be trusted
 
     Returns:
         True if authentication succeeded, False if it failed.
@@ -210,7 +238,10 @@ def check_credentials(server, username, password):
     url = 'https://%s/certsrv/' % server
     req = urllib2.Request(url, headers=headers)
     try:
-        urllib2.urlopen(req)
+        if cafile:
+            urllib2.urlopen(req, cafile=cafile)
+        else:
+            urllib2.urlopen(req)
     except urllib2.HTTPError as error:
         if error.code == 401:
             return False
