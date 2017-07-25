@@ -87,7 +87,7 @@ def get_cert(server, csr, template, username, password, encoding='b64', cafile=N
             except AttributeError:
                 error = 'An unknown error occured'
             raise RequestDeniedException(error, response_page)
-    return get_existing_cert(server, req_id, username, password, encoding)
+    return get_existing_cert(server, req_id, username, password, encoding, cafile)
 
 def get_existing_cert(server, req_id, username, password, encoding='b64', cafile=None):
     """
