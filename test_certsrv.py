@@ -148,3 +148,35 @@ def test_get_cert_with_wrong_cafile(opt_adcs):
     with pytest.raises(URLError) as excinfo:
         certsrv.get_cert(opt_adcs, 'fake csr', 'Template', 'username', 'password', cafile=ca_bundle)
     assert excinfo.value.reason.reason == 'CERTIFICATE_VERIFY_FAILED'
+
+# These functions does several https request, so to be certain the cafile param works on all
+# we need a positive test. We reset the trust by using the SSL_CERT_FILE environment variable
+# and then see if they work with the correct cafile parameter
+
+def test_get_cert_with_cafile(opt_adcs, opt_username, opt_password, opt_template, opt_cafile):
+    if not opt_cafile:
+        pytest.skip("No CA bundle configured")
+    os.environ['SSL_CERT_FILE'] = './fakepath'
+    csr = create_csr()
+    pem_csr = OpenSSL.crypto.dump_certificate_request(OpenSSL.crypto.FILETYPE_PEM, csr)
+    pem_cert = certsrv.get_cert(opt_adcs, pem_csr, opt_template, opt_username, opt_password,
+                                cafile=opt_cafile)
+    cert = OpenSSL.crypto.load_certificate(OpenSSL.crypto.FILETYPE_PEM, pem_cert)
+
+def test_get_ca_cert_with_cafile(opt_adcs, opt_username, opt_password, opt_cafile):
+    if not opt_cafile:
+        pytest.skip("No CA bundle configured")
+    os.environ['SSL_CERT_FILE'] = './fakepath'
+    pem_cert = certsrv.get_ca_cert(opt_adcs, opt_username, opt_password, cafile=opt_cafile)
+    cert = OpenSSL.crypto.load_certificate(OpenSSL.crypto.FILETYPE_PEM, pem_cert)
+    # If it is the current cert, it should be valid
+    assert cert.has_expired() == False
+
+def test_get_chain_with_cafile(opt_adcs, opt_username, opt_password, opt_cafile):
+    if not opt_cafile:
+        pytest.skip("No CA bundle configured")
+    os.environ['SSL_CERT_FILE'] = './fakepath'
+    pem_chain = certsrv.get_chain(opt_adcs, opt_username, opt_password, 'b64', cafile=opt_cafile)
+    # pyOpenSSL does not have an option to parse PKCS#7,
+    # so we just check that it is the right encoding
+    assert '-----BEGIN CERTIFICATE-----' in pem_chain

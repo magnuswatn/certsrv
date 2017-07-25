@@ -11,6 +11,7 @@ def pytest_addoption(parser):
                      default="WebServer")
     parser.addoption("--manual-template", action="store", help="Template with manual approval",
                      default="WebServer_Manual")
+    parser.addoption("--cafile", action="store", help="CA bundle that trusts the ADCS server")
 
 @pytest.fixture
 def opt_adcs(request):
@@ -32,3 +33,6 @@ def opt_template(request):
 def opt_mantemplate(request):
     return request.config.getoption("--manual-template")
 
+@pytest.fixture
+def opt_cafile(request):
+    return request.config.getoption("--cafile")
