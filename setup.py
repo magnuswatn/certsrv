@@ -23,5 +23,6 @@ setup(
         'Topic :: Security',
         'Topic :: Software Development :: Libraries',
         'Topic :: System :: Systems Administration',
-        ],
+    ],
+    install_requires=['python-ntlm']
 )
