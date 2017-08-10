@@ -3,9 +3,12 @@ A Python client for the Microsoft AD Certificate Services web page.
 
 https://github.com/magnuswatn/certsrv
 """
+from ntlm import HTTPNtlmAuthHandler
+
 import re
 import urllib
 import urllib2
+
 
 class RequestDeniedException(Exception):
     """Signifies that the request was denied by the ADCS server."""
@@ -13,21 +16,24 @@ class RequestDeniedException(Exception):
         Exception.__init__(self, message)
         self.response = response
 
+
 class CouldNotRetrieveCertificateException(Exception):
     """Signifies that the certificate could not be retrieved."""
     def __init__(self, message, response):
         Exception.__init__(self, message)
         self.response = response
 
+
 class CertificatePendingException(Exception):
     """Signifies that the request needs to be approved by a CA admin."""
     def __init__(self, req_id):
         Exception.__init__(self, 'Your certificate request has been received. '
-                                 'However, you must wait for an administrator to issue the'
-                                 'certificate you requested. Your Request Id is %s.' % req_id)
+                           'However, you must wait for an administrator to issue the'
+                           'certificate you requested. Your Request Id is %s.' % req_id)
         self.req_id = req_id
 
-def get_cert(server, csr, template, username, password, encoding='b64'):
+
+def get_cert(server, csr, template, username, password, encoding='b64', auth_type='basic'):
     """
     Gets a certificate from a Microsoft AD Certificate Services web page.
 
@@ -52,22 +58,34 @@ def get_cert(server, csr, template, username, password, encoding='b64'):
     headers = {
         'User-Agent': 'Mozilla/5.0 certsrv (https://github.com/magnuswatn/certsrv)',
         'Content-type': 'application/x-www-form-urlencoded',
-        'Authorization':'Basic %s' % urllib2.base64.b64encode('%s:%s' % (username, password))
+        'Authorization': 'Basic %s' % urllib2.base64.b64encode('%s:%s' % (username, password))
     }
     data = {
         'Mode': 'newreq',
         'CertRequest': csr,
         'CertAttrib': 'CertificateTemplate:%s' % template,
         'UserAgent': 'certsrv (https://github.com/magnuswatn/certsrv)',
-        'FriendlyType':'Saved-Request Certificate',
-        'TargetStoreFlags':'0',
-        'SaveCert':'yes'
+        'FriendlyType': 'Saved-Request Certificate',
+        'TargetStoreFlags': '0',
+        'SaveCert': 'yes'
     }
     data_encoded = urllib.urlencode(data)
     url = 'https://%s/certsrv/certfnsh.asp' % server
+
+    if auth_type == "ntlm":
+        passman = urllib2.HTTPPasswordMgrWithDefaultRealm()
+        passman.add_password(None, url, username, password)
+
+        # create the NTLM authentication handler
+        auth_NTLM = HTTPNtlmAuthHandler.HTTPNtlmAuthHandler(passman)
+        # create and install the opener
+        opener = urllib2.build_opener(auth_NTLM)
+        urllib2.install_opener(opener)
+
     req = urllib2.Request(url, data_encoded, headers)
     response = urllib2.urlopen(req)
     response_page = response.read()
+
     # We need to parse the Request ID from the returning HTML page
     try:
         req_id = re.search(r'certnew.cer\?ReqID=(\d+)&', response_page).group(1)
@@ -83,9 +101,9 @@ def get_cert(server, csr, template, username, password, encoding='b64'):
             except AttributeError:
                 error = 'An unknown error occured'
             raise RequestDeniedException(error, response_page)
-    return get_existing_cert(server, req_id, username, password, encoding)
+    return get_existing_cert(server, req_id, username, password, encoding, auth_type=auth_type)
 
-def get_existing_cert(server, req_id, username, password, encoding='b64'):
+def get_existing_cert(server, req_id, username, password, encoding='b64', auth_type="basic"):
     """
     Gets a certificate that has already been created.
 
@@ -111,6 +129,16 @@ def get_existing_cert(server, req_id, username, password, encoding='b64'):
     }
 
     cert_url = 'https://%s/certsrv/certnew.cer?ReqID=%s&Enc=%s' % (server, req_id, encoding)
+    if auth_type == "ntlm":
+        passman = urllib2.HTTPPasswordMgrWithDefaultRealm()
+        passman.add_password(None, cert_url, username, password)
+
+        # create the NTLM authentication handler
+        auth_NTLM = HTTPNtlmAuthHandler.HTTPNtlmAuthHandler(passman)
+        # create and install the opener
+        opener = urllib2.build_opener(auth_NTLM)
+        urllib2.install_opener(opener)
+
     cert_req = urllib2.Request(cert_url, headers=headers)
 
     response = urllib2.urlopen(cert_req)
