@@ -53,18 +53,18 @@ def _get_response(username, password, url, data, auth_method='basic'):
 
     # Add Authentication specific headers or handlers to opener
     if auth_method == "ntlm":
-      from ntlm import HTTPNtlmAuthHandler
+        from ntlm import HTTPNtlmAuthHandler
 
-      passman = urllib2.HTTPPasswordMgrWithDefaultRealm()
-      passman.add_password(None, url, username, password)
-      auth_handler = HTTPNtlmAuthHandler.HTTPNtlmAuthHandler(passman)
-      opener.add_handler(auth_handler)
+        passman = urllib2.HTTPPasswordMgrWithDefaultRealm()
+        passman.add_password(None, url, username, password)
+        auth_handler = HTTPNtlmAuthHandler.HTTPNtlmAuthHandler(passman)
+        opener.add_handler(auth_handler)
     else:
       # Do Basic-Auth by Headers instead of HTTPBasicAuthHandler, because the handler
       # makes and additional 401 challange before sending credentials, which doubles the
       # requests unnecessarily
-      auth_string = 'Basic %s' % urllib2.base64.b64encode('%s:%s' % (username, password))
-      headers.append(('Authorization', auth_string))
+        auth_string = 'Basic %s' % urllib2.base64.b64encode('%s:%s' % (username, password))
+        headers.append(('Authorization', auth_string))
 
     # Add headers and Install opener
     opener.addheaders = headers
@@ -72,14 +72,14 @@ def _get_response(username, password, url, data, auth_method='basic'):
 
     # Make the request now
     response = urllib2.urlopen(url, data)
-    
+
     # The response code is not validated when using the HTTPNtlmAuthHandler
     # so we have to check it ourselves
-    if response.getcode() is 200:
-      return response
+    if response.getcode() == 200:
+        return response
     else:
         raise urllib2.HTTPError(response.url, response.getcode(), response.msg,
-                              response.headers, response.fp)
+                                response.headers, response.fp)
 
 def get_cert(server, csr, template, username, password, encoding='b64', auth_method='basic'):
     """
@@ -195,7 +195,9 @@ def get_ca_cert(server, username, password, encoding='b64', auth_method='basic')
     # We have to check how many renewals this server has had, so that we get the newest CA cert
     renewals = re.search(r'var nRenewals=(\d+);', response_page).group(1)
 
-    cert_url = 'https://%s/certsrv/certnew.cer?ReqID=CACert&Renewal=%s&Enc=%s' % (server, renewals, encoding)
+    cert_url = 'https://%s/certsrv/certnew.cer?ReqID=CACert&Renewal=%s&Enc=%s' % (server,
+                                                                                  renewals,
+                                                                                  encoding)
     response = _get_response(username, password, cert_url, None, auth_method)
     cert = response.read()
     return cert
@@ -244,11 +246,11 @@ def check_credentials(server, username, password, auth_method='basic'):
     url = 'https://%s/certsrv/' % server
 
     try:
-      response = _get_response(username, password, url, None, auth_method)
+        _get_response(username, password, url, None, auth_method)
     except urllib2.HTTPError as error:
-      if error.code == 401:
-        return False
-      else:
-        raise
+        if error.code == 401:
+            return False
+        else:
+            raise
     else:
         return True
