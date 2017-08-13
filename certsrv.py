@@ -73,11 +73,13 @@ def _get_response(username, password, url, data, auth_method='basic'):
     # Make the request now
     response = urllib2.urlopen(url, data)
     
-    # Check HTTP Status Code
+    # The response code is not validated when using the HTTPNtlmAuthHandler
+    # so we have to check it ourselves
     if response.getcode() is 200:
       return response
-    else: 
-      return None
+    else:
+        raise urllib2.HTTPError(response.url, response.getcode(), response.msg,
+                              response.headers, response.fp)
 
 def get_cert(server, csr, template, username, password, encoding='b64', auth_method='basic'):
     """
@@ -243,10 +245,10 @@ def check_credentials(server, username, password, auth_method='basic'):
 
     try:
       response = _get_response(username, password, url, None, auth_method)
-      if response.getcode() is 200:
-        return True
     except urllib2.HTTPError as error:
       if error.code == 401:
         return False
       else:
         raise
+    else:
+        return True
