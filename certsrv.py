@@ -27,7 +27,61 @@ class CertificatePendingException(Exception):
                                  'certificate you requested. Your Request Id is %s.' % req_id)
         self.req_id = req_id
 
-def get_cert(server, csr, template, username, password, encoding='b64'):
+def _get_response(username, password, url, data, auth_method='basic'):
+    """
+    Helper Function to execute the HTTP request againts the given url.
+
+    Args:
+      username: The username for authentication
+      pasword: The password for authentication
+      url: URL for Request
+      data: The data to send
+      auth_method: The Authentication Methos to use. (basic or ntlm)
+
+    Returns:
+      HTTP Response
+
+    """
+
+    # Create opener
+    opener = urllib2.build_opener()
+    headers = []
+
+    # We need certsrv to think we are a browser, or otherwise the Content-Type of the
+    # retrieved certificate will be wrong
+    headers.append(('User-agent', 'Mozilla/5.0 certsrv (https://github.com/magnuswatn/certsrv)'))
+
+    # Add Authentication specific headers or handlers to opener
+    if auth_method == "ntlm":
+        from ntlm import HTTPNtlmAuthHandler
+
+        passman = urllib2.HTTPPasswordMgrWithDefaultRealm()
+        passman.add_password(None, url, username, password)
+        auth_handler = HTTPNtlmAuthHandler.HTTPNtlmAuthHandler(passman)
+        opener.add_handler(auth_handler)
+    else:
+      # Do Basic-Auth by Headers instead of HTTPBasicAuthHandler, because the handler
+      # makes and additional 401 challange before sending credentials, which doubles the
+      # requests unnecessarily
+        auth_string = 'Basic %s' % urllib2.base64.b64encode('%s:%s' % (username, password))
+        headers.append(('Authorization', auth_string))
+
+    # Add headers and Install opener
+    opener.addheaders = headers
+    urllib2.install_opener(opener)
+
+    # Make the request now
+    response = urllib2.urlopen(url, data)
+
+    # The response code is not validated when using the HTTPNtlmAuthHandler
+    # so we have to check it ourselves
+    if response.getcode() == 200:
+        return response
+    else:
+        raise urllib2.HTTPError(response.url, response.getcode(), response.msg,
+                                response.headers, response.fp)
+
+def get_cert(server, csr, template, username, password, encoding='b64', auth_method='basic'):
     """
     Gets a certificate from a Microsoft AD Certificate Services web page.
 
@@ -49,11 +103,6 @@ def get_cert(server, csr, template, username, password, encoding='b64'):
         CertificatePendingException: If the request needs to be approved by a CA admin
         CouldNotRetrieveCertificateException: If something went wrong while fetching the cert
     """
-    headers = {
-        'User-Agent': 'Mozilla/5.0 certsrv (https://github.com/magnuswatn/certsrv)',
-        'Content-type': 'application/x-www-form-urlencoded',
-        'Authorization':'Basic %s' % urllib2.base64.b64encode('%s:%s' % (username, password))
-    }
     data = {
         'Mode': 'newreq',
         'CertRequest': csr,
@@ -63,11 +112,12 @@ def get_cert(server, csr, template, username, password, encoding='b64'):
         'TargetStoreFlags':'0',
         'SaveCert':'yes'
     }
-    data_encoded = urllib.urlencode(data)
+
     url = 'https://%s/certsrv/certfnsh.asp' % server
-    req = urllib2.Request(url, data_encoded, headers)
-    response = urllib2.urlopen(req)
+    data_encoded = urllib.urlencode(data)
+    response = _get_response(username, password, url, data_encoded, auth_method)
     response_page = response.read()
+
     # We need to parse the Request ID from the returning HTML page
     try:
         req_id = re.search(r'certnew.cer\?ReqID=(\d+)&', response_page).group(1)
@@ -83,9 +133,10 @@ def get_cert(server, csr, template, username, password, encoding='b64'):
             except AttributeError:
                 error = 'An unknown error occured'
             raise RequestDeniedException(error, response_page)
-    return get_existing_cert(server, req_id, username, password, encoding)
 
-def get_existing_cert(server, req_id, username, password, encoding='b64'):
+    return get_existing_cert(server, req_id, username, password, encoding, auth_method)
+
+def get_existing_cert(server, req_id, username, password, encoding='b64', auth_method='basic'):
     """
     Gets a certificate that has already been created.
 
@@ -104,17 +155,12 @@ def get_existing_cert(server, req_id, username, password, encoding='b64'):
     Raises:
         CouldNotRetrieveCertificateException: If something went wrong while fetching the cert
     """
-    headers = {
-        # We need certsrv to think we are a browser, or otherwise the Content-Type will be wrong
-        'User-Agent': 'Mozilla/5.0 certsrv (https://github.com/magnuswatn/certsrv)',
-        'Authorization':'Basic %s' % urllib2.base64.b64encode('%s:%s' % (username, password))
-    }
 
     cert_url = 'https://%s/certsrv/certnew.cer?ReqID=%s&Enc=%s' % (server, req_id, encoding)
-    cert_req = urllib2.Request(cert_url, headers=headers)
 
-    response = urllib2.urlopen(cert_req)
+    response = _get_response(username, password, cert_url, None, auth_method)
     response_content = response.read()
+
     if response.headers.type != 'application/pkix-cert':
         # The response was not a cert. Something must have gone wrong
         try:
@@ -125,7 +171,7 @@ def get_existing_cert(server, req_id, username, password, encoding='b64'):
     else:
         return response_content
 
-def get_ca_cert(server, username, password, encoding='b64'):
+def get_ca_cert(server, username, password, encoding='b64', auth_method='basic'):
     """
     Gets the (newest) CA certificate from a Microsoft AD Certificate Services web page.
 
@@ -140,24 +186,23 @@ def get_ca_cert(server, username, password, encoding='b64'):
     Returns:
         The newest CA certificate from the server
     """
-    headers = {
-        'User-Agent': 'Mozilla/5.0 certsrv (https://github.com/magnuswatn/certsrv)',
-        'Authorization':'Basic %s' % urllib2.base64.b64encode('%s:%s' % (username, password))
-    }
+
     url = 'https://%s/certsrv/certcarc.asp' % server
-    req = urllib2.Request(url, headers=headers)
-    response = urllib2.urlopen(req)
+
+    response = _get_response(username, password, url, None, auth_method)
     response_page = response.read()
+
     # We have to check how many renewals this server has had, so that we get the newest CA cert
     renewals = re.search(r'var nRenewals=(\d+);', response_page).group(1)
+
     cert_url = 'https://%s/certsrv/certnew.cer?ReqID=CACert&Renewal=%s&Enc=%s' % (server,
                                                                                   renewals,
                                                                                   encoding)
-    cert_req = urllib2.Request(cert_url, headers=headers)
-    cert = urllib2.urlopen(cert_req).read()
+    response = _get_response(username, password, cert_url, None, auth_method)
+    cert = response.read()
     return cert
 
-def get_chain(server, username, password, encoding='bin'):
+def get_chain(server, username, password, encoding='bin', auth_method='basic'):
     """
     Gets the chain from a Microsoft AD Certificate Services web page.
 
@@ -172,25 +217,19 @@ def get_chain(server, username, password, encoding='bin'):
     Returns:
         The CA chain from the server, in PKCS#7 format
     """
-    headers = {
-        'User-Agent': 'Mozilla/5.0 certsrv (https://github.com/magnuswatn/certsrv)',
-        'Authorization':'Basic %s' % urllib2.base64.b64encode('%s:%s' % (username, password))
-    }
     url = 'https://%s/certsrv/certcarc.asp' % server
-    req = urllib2.Request(url, headers=headers)
 
-    response = urllib2.urlopen(req)
+    response = _get_response(username, password, url, None, auth_method)
     response_page = response.read()
     # We have to check how many renewals this server has had, so that we get the newest chain
     renewals = re.search(r'var nRenewals=(\d+);', response_page).group(1)
     chain_url = 'https://%s/certsrv/certnew.p7b?ReqID=CACert&Renewal=%s&Enc=%s' % (server,
                                                                                    renewals,
                                                                                    encoding)
-    chain_req = urllib2.Request(chain_url, headers=headers)
-    chain = urllib2.urlopen(chain_req).read()
+    chain = _get_response(username, password, chain_url, None, auth_method).read()
     return chain
 
-def check_credentials(server, username, password):
+def check_credentials(server, username, password, auth_method='basic'):
     """
     Checks the specified credentials against the specified ADCS server
 
@@ -203,14 +242,11 @@ def check_credentials(server, username, password):
     Returns:
         True if authentication succeeded, False if it failed.
     """
-    headers = {
-        'User-Agent': 'Mozilla/5.0 certsrv (https://github.com/magnuswatn/certsrv)',
-        'Authorization':'Basic %s' % urllib2.base64.b64encode('%s:%s' % (username, password))
-    }
+
     url = 'https://%s/certsrv/' % server
-    req = urllib2.Request(url, headers=headers)
+
     try:
-        urllib2.urlopen(req)
+        _get_response(username, password, url, None, auth_method)
     except urllib2.HTTPError as error:
         if error.code == 401:
             return False
