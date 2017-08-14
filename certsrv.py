@@ -27,7 +27,7 @@ class CertificatePendingException(Exception):
                                  'certificate you requested. Your Request Id is %s.' % req_id)
         self.req_id = req_id
 
-def _get_response(username, password, url, data, auth_method='basic', cafile=None):
+def _get_response(username, password, url, data, auth_method, cafile):
     """
     Helper Function to execute the HTTP request againts the given url.
 
