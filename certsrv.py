@@ -110,9 +110,9 @@ def get_cert(server, csr, template, username, password, encoding='b64', auth_met
         'CertRequest': csr,
         'CertAttrib': 'CertificateTemplate:%s' % template,
         'UserAgent': 'certsrv (https://github.com/magnuswatn/certsrv)',
-        'FriendlyType':'Saved-Request Certificate',
-        'TargetStoreFlags':'0',
-        'SaveCert':'yes'
+        'FriendlyType': 'Saved-Request Certificate',
+        'TargetStoreFlags': '0',
+        'SaveCert': 'yes'
     }
 
     url = 'https://%s/certsrv/certfnsh.asp' % server
