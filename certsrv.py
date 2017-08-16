@@ -94,8 +94,8 @@ def get_cert(server, csr, template, username, password, encoding='b64', auth_met
         pasword: The password for authentication
         encoding: The desired encoding for the returned certificate.
                   Possible values are "bin" for binary and "b64" for Base64 (PEM)
+        auth_method: The chosen authentication method. Either 'basic' (the default) or 'ntlm'
         cafile: A PEM file containing the CA certificates that should be trusted
-                (only works with basic auth)
 
     Returns:
         The issued certificate
@@ -104,6 +104,9 @@ def get_cert(server, csr, template, username, password, encoding='b64', auth_met
         RequestDeniedException: If the request was denied by the ADCS server
         CertificatePendingException: If the request needs to be approved by a CA admin
         CouldNotRetrieveCertificateException: If something went wrong while fetching the cert
+
+    .. note:: The cafile parameter does not work with NTLM authentication.
+
     """
     data = {
         'Mode': 'newreq',
@@ -150,14 +153,16 @@ def get_existing_cert(server, req_id, username, password, encoding='b64', auth_m
         pasword: The password for authentication
         encoding: The desired encoding for the returned certificate.
                   Possible values are "bin" for binary and "b64" for Base64 (PEM)
+        auth_method: The chosen authentication method. Either 'basic' (the default) or 'ntlm'
         cafile: A PEM file containing the CA certificates that should be trusted
-                (only works with basic auth)
 
     Returns:
         The issued certificate
 
     Raises:
         CouldNotRetrieveCertificateException: If something went wrong while fetching the cert
+
+    .. note:: The cafile parameter does not work with NTLM authentication.
     """
 
     cert_url = 'https://%s/certsrv/certnew.cer?ReqID=%s&Enc=%s' % (server, req_id, encoding)
@@ -186,11 +191,13 @@ def get_ca_cert(server, username, password, encoding='b64', auth_method='basic',
         pasword: The password for authentication
         encoding: The desired encoding for the returned certificate.
                   Possible values are "bin" for binary and "b64" for Base64 (PEM)
+        auth_method: The chosen authentication method. Either 'basic' (the default) or 'ntlm'
         cafile: A PEM file containing the CA certificates that should be trusted
-                (only works with basic auth)
 
     Returns:
         The newest CA certificate from the server
+
+    .. note:: The cafile parameter does not work with NTLM authentication.
     """
 
     url = 'https://%s/certsrv/certcarc.asp' % server
@@ -219,11 +226,13 @@ def get_chain(server, username, password, encoding='bin', auth_method='basic', c
         pasword: The password for authentication
         encoding: The desired encoding for the returned certificates.
                   Possible values are "bin" for binary and "b64" for Base64 (PEM)
+        auth_method: The chosen authentication method. Either 'basic' (the default) or 'ntlm'
         cafile: A PEM file containing the CA certificates that should be trusted
-                (only works with basic auth)
 
     Returns:
         The CA chain from the server, in PKCS#7 format
+
+    .. note:: The cafile parameter does not work with NTLM authentication.
     """
     url = 'https://%s/certsrv/certcarc.asp' % server
 
@@ -246,11 +255,13 @@ def check_credentials(server, username, password, auth_method='basic', cafile=No
             Web Enrollment role (must be listening on https)
         username: The username for authentication
         pasword: The password for authentication
+        auth_method: The chosen authentication method. Either 'basic' (the default) or 'ntlm'
         cafile: A PEM file containing the CA certificates that should be trusted
-                (only works with basic auth)
 
     Returns:
         True if authentication succeeded, False if it failed.
+
+    .. note:: The cafile parameter does not work with NTLM authentication.
     """
 
     url = 'https://%s/certsrv/' % server
