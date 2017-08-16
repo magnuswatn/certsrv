@@ -1,7 +1,23 @@
+import os
+import re
+import codecs
+
 try:
     from setuptools import setup
 except ImportError:
     from distutils.core import setup
+
+
+def read_file(filename, encoding='utf8'):
+    """Read unicode from given file."""
+    with codecs.open(filename, encoding=encoding) as fd:
+        return fd.read()
+
+# read version number from the script
+here = os.path.abspath(os.path.dirname(__file__))
+script_path = os.path.join(here, 'certsrv.py')
+version = dict(re.findall(r"""__([a-z]+)__ = '([^']+)""", read_file(script_path)))['version']
+
 
 setup(
     name='certsrv',
@@ -10,7 +26,7 @@ setup(
     license='MIT',
     url='https://github.com/magnuswatn/certsrv',
     keywords='ad adcs certsrv pki certificate',
-    version='1.5.1',
+    version=version,
     py_modules=['certsrv'],
     classifiers=[
         'Development Status :: 5 - Production/Stable',
