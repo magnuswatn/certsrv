@@ -30,7 +30,7 @@ class CertificatePendingException(Exception):
                                  'certificate you requested. Your Request Id is %s.' % req_id)
         self.req_id = req_id
 
-def _get_response(username, password, url, data, auth_method, cafile):
+def _get_response(username, password, url, data, **kwargs):
     """
     Helper Function to execute the HTTP request againts the given url.
 
@@ -47,6 +47,10 @@ def _get_response(username, password, url, data, auth_method, cafile):
       HTTP Response
 
     """
+    cafile = kwargs.pop('cafile', None)
+    auth_method = kwargs.pop('auth_method', 'basic')
+    if kwargs:
+        raise TypeError('Unexpected argument: %r' % kwargs)
 
     # We need certsrv to think we are a browser, or otherwise the Content-Type of the
     # retrieved certificate will be wrong (for some reason)
@@ -84,7 +88,7 @@ def _get_response(username, password, url, data, auth_method, cafile):
         raise urllib2.HTTPError(response.url, response.getcode(), response.msg,
                                 response.headers, response.fp)
 
-def get_cert(server, csr, template, username, password, encoding='b64', auth_method='basic', cafile=None):
+def get_cert(server, csr, template, username, password, encoding='b64', **kwargs):
     """
     Gets a certificate from a Microsoft AD Certificate Services web page.
 
@@ -123,7 +127,7 @@ def get_cert(server, csr, template, username, password, encoding='b64', auth_met
 
     url = 'https://%s/certsrv/certfnsh.asp' % server
     data_encoded = urllib.urlencode(data)
-    response = _get_response(username, password, url, data_encoded, auth_method, cafile=cafile)
+    response = _get_response(username, password, url, data_encoded, **kwargs)
     response_page = response.read()
 
     # We need to parse the Request ID from the returning HTML page
@@ -142,9 +146,9 @@ def get_cert(server, csr, template, username, password, encoding='b64', auth_met
                 error = 'An unknown error occured'
             raise RequestDeniedException(error, response_page)
 
-    return get_existing_cert(server, req_id, username, password, encoding, auth_method, cafile)
+    return get_existing_cert(server, req_id, username, password, encoding, **kwargs)
 
-def get_existing_cert(server, req_id, username, password, encoding='b64', auth_method='basic', cafile=None):
+def get_existing_cert(server, req_id, username, password, encoding='b64', **kwargs):
     """
     Gets a certificate that has already been created.
 
@@ -170,7 +174,7 @@ def get_existing_cert(server, req_id, username, password, encoding='b64', auth_m
 
     cert_url = 'https://%s/certsrv/certnew.cer?ReqID=%s&Enc=%s' % (server, req_id, encoding)
 
-    response = _get_response(username, password, cert_url, None, auth_method, cafile=cafile)
+    response = _get_response(username, password, cert_url, None, **kwargs)
     response_content = response.read()
 
     if response.headers.type != 'application/pkix-cert':
@@ -183,7 +187,7 @@ def get_existing_cert(server, req_id, username, password, encoding='b64', auth_m
     else:
         return response_content
 
-def get_ca_cert(server, username, password, encoding='b64', auth_method='basic', cafile=None):
+def get_ca_cert(server, username, password, encoding='b64', **kwargs):
     """
     Gets the (newest) CA certificate from a Microsoft AD Certificate Services web page.
 
@@ -205,7 +209,7 @@ def get_ca_cert(server, username, password, encoding='b64', auth_method='basic',
 
     url = 'https://%s/certsrv/certcarc.asp' % server
 
-    response = _get_response(username, password, url, None, auth_method, cafile=cafile)
+    response = _get_response(username, password, url, None, **kwargs)
     response_page = response.read()
 
     # We have to check how many renewals this server has had, so that we get the newest CA cert
@@ -214,11 +218,11 @@ def get_ca_cert(server, username, password, encoding='b64', auth_method='basic',
     cert_url = 'https://%s/certsrv/certnew.cer?ReqID=CACert&Renewal=%s&Enc=%s' % (server,
                                                                                   renewals,
                                                                                   encoding)
-    response = _get_response(username, password, cert_url, None, auth_method, cafile=cafile)
+    response = _get_response(username, password, cert_url, None, **kwargs)
     cert = response.read()
     return cert
 
-def get_chain(server, username, password, encoding='bin', auth_method='basic', cafile=None):
+def get_chain(server, username, password, encoding='bin', **kwargs):
     """
     Gets the chain from a Microsoft AD Certificate Services web page.
 
@@ -239,17 +243,17 @@ def get_chain(server, username, password, encoding='bin', auth_method='basic', c
     """
     url = 'https://%s/certsrv/certcarc.asp' % server
 
-    response = _get_response(username, password, url, None, auth_method, cafile=cafile)
+    response = _get_response(username, password, url, None, **kwargs)
     response_page = response.read()
     # We have to check how many renewals this server has had, so that we get the newest chain
     renewals = re.search(r'var nRenewals=(\d+);', response_page).group(1)
     chain_url = 'https://%s/certsrv/certnew.p7b?ReqID=CACert&Renewal=%s&Enc=%s' % (server,
                                                                                    renewals,
                                                                                    encoding)
-    chain = _get_response(username, password, chain_url, None, auth_method, cafile=cafile).read()
+    chain = _get_response(username, password, chain_url, None, **kwargs).read()
     return chain
 
-def check_credentials(server, username, password, auth_method='basic', cafile=None):
+def check_credentials(server, username, password, **kwargs):
     """
     Checks the specified credentials against the specified ADCS server
 
@@ -270,7 +274,7 @@ def check_credentials(server, username, password, auth_method='basic', cafile=No
     url = 'https://%s/certsrv/' % server
 
     try:
-        _get_response(username, password, url, None, auth_method, cafile=cafile)
+        _get_response(username, password, url, None, **kwargs)
     except urllib2.HTTPError as error:
         if error.code == 401:
             return False
