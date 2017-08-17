@@ -28,6 +28,9 @@ setup(
     keywords='ad adcs certsrv pki certificate',
     version=version,
     py_modules=['certsrv'],
+    extras_require={
+        'ntlm': ['python-ntlm']
+        },
     classifiers=[
         'Development Status :: 5 - Production/Stable',
         'Intended Audience :: System Administrators',
