@@ -8,7 +8,7 @@ import urllib
 import urllib2
 
 
-__version__ = '1.5.2dev'
+__version__ = '1.6.0'
 
 class RequestDeniedException(Exception):
     """Signifies that the request was denied by the ADCS server."""
