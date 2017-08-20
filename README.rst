@@ -1,8 +1,6 @@
 certsrv
 =======
 
-*A Python client for the Microsoft AD Certificate Services web page*
-
 It is quite normal to have an internal PKI based on the Microsoft AD
 Certificate Services, which work great with Windows, but not so much on
 other OSes. Users of other OSes must often manually create a CSR and
