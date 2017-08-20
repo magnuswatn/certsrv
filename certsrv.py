@@ -82,10 +82,10 @@ def _get_response(username, password, url, data, **kwargs):
 
     # The response code is not validated when using the HTTPNtlmAuthHandler
     # so we have to check it ourselves
-    if response.getcode() == 200:
+    if response.code == 200:
         return response
     else:
-        raise urllib2.HTTPError(response.url, response.getcode(), response.msg,
+        raise urllib2.HTTPError(response.url, response.code, response.msg,
                                 response.headers, response.fp)
 
 def get_cert(server, csr, template, username, password, encoding='b64', **kwargs):
@@ -275,7 +275,7 @@ def check_credentials(server, username, password, **kwargs):
 
     try:
         _get_response(username, password, url, None, **kwargs)
-    except urllib2.HTTPError as error:
+    except urllib2.HTTPError, error:
         if error.code == 401:
             return False
         else:
