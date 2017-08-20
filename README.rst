@@ -14,8 +14,23 @@ complicated.)
 This is a simple litle Python client for the certsrv page, so that
 Python programs can get certificates without manual operation.
 
+Installation
+------------
+
+.. code-block:: bash
+
+    $ pip install certsrv
+
+
+Or, if you want NTLM support:
+
+.. code-block:: bash
+
+    $ pip install certsrv[ntlm]
+
+
 Documentation
 -------------
 
-See `Documentation <https://certsrv.readthedocs.org>`_.
+See `Documentation <https://certsrv.readthedocs.org>`_
 
