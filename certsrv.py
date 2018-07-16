@@ -5,10 +5,11 @@ https://github.com/magnuswatn/certsrv
 """
 import re
 import urllib
-import urllib2
+import urllib.request
+import requests
+import base64
 
-
-__version__ = '1.6.1'
+__version__ = '1.7.0'
 
 class RequestDeniedException(Exception):
     """Signifies that the request was denied by the ADCS server."""
@@ -30,11 +31,12 @@ class CertificatePendingException(Exception):
                                  'certificate you requested. Your Request Id is %s.' % req_id)
         self.req_id = req_id
 
-def _get_response(username, password, url, data, **kwargs):
+def _get_response(session, username, password, url, data, **kwargs):
     """
     Helper Function to execute the HTTP request againts the given url.
 
     Args:
+      http: The PoolManager object
       username: The username for authentication
       pasword: The password for authentication
       url: URL for Request
@@ -56,37 +58,44 @@ def _get_response(username, password, url, data, **kwargs):
     # retrieved certificate will be wrong (for some reason)
     headers = {'User-agent': 'Mozilla/5.0 certsrv (https://github.com/magnuswatn/certsrv)'}
 
-    req = urllib2.Request(url, data, headers)
+    if data:
+        req = requests.Request('POST', url, data=data, headers=headers)
+    else:
+        req = requests.Request('GET', url, headers=headers)
 
     if auth_method == "ntlm":
         # We use the HTTPNtlmAuthHandler from python-ntlm for NTLM auth
         from ntlm import HTTPNtlmAuthHandler
 
-        passman = urllib2.HTTPPasswordMgrWithDefaultRealm()
+        passman = urllib.request.HTTPPasswordMgrWithDefaultRealm()
         passman.add_password(None, url, username, password)
         auth_handler = HTTPNtlmAuthHandler.HTTPNtlmAuthHandler(passman)
-        opener = urllib2.build_opener(auth_handler)
-        urllib2.install_opener(opener)
+        opener = urllib.request.build_opener(auth_handler)
+        urllib.request.install_opener(opener)
     else:
       # We don't bother with HTTPBasicAuthHandler for basic auth, since
       # it doesn't add the credentials before receiving an 401 challange
       # as thus doubless the requests unnecessary.
       # Plus, it's easier just to add the header ourselves
-        req.add_header('Authorization', 'Basic %s' %
-                       urllib2.base64.b64encode('%s:%s' % (username, password)))
+      authinfo = "{}:{}".format(username, password)
+      req.headers.update({'Authorization': 'Basic {}'.format(
+        base64.b64encode(authinfo.encode()).decode())})
 
+    prepreq = session.prepare_request(req)
     if cafile:
-        response = urllib2.urlopen(req, cafile=cafile)
+        response = session.send(prepreq, stream=False, verify=True,
+                                    proxies=None, cert=cafile, timeout=10)
     else:
-        response = urllib2.urlopen(req)
+        response = session.send(prepreq, stream=False, verify=True,
+                                    proxies=None, timeout=10)
 
     # The response code is not validated when using the HTTPNtlmAuthHandler
     # so we have to check it ourselves
-    if response.code == 200:
+    if response.status_code == 200:
         return response
     else:
-        raise urllib2.HTTPError(response.url, response.code, response.msg,
-                                response.headers, response.fp)
+        raise requests.HTTPError(response.text)
+
 
 def get_cert(server, csr, template, username, password, encoding='b64', **kwargs):
     """
@@ -118,17 +127,19 @@ def get_cert(server, csr, template, username, password, encoding='b64', **kwargs
     data = {
         'Mode': 'newreq',
         'CertRequest': csr,
-        'CertAttrib': 'CertificateTemplate:%s' % template,
+        'CertAttrib': 'CertificateTemplate:{}'.format(template),
         'UserAgent': 'certsrv (https://github.com/magnuswatn/certsrv)',
         'FriendlyType': 'Saved-Request Certificate',
         'TargetStoreFlags': '0',
         'SaveCert': 'yes'
     }
 
-    url = 'https://%s/certsrv/certfnsh.asp' % server
-    data_encoded = urllib.urlencode(data)
-    response = _get_response(username, password, url, data_encoded, **kwargs)
-    response_page = response.read()
+    session = requests.Session()
+
+    url = "https://{}/certsrv/certfnsh.asp".format(server)
+    #data_encoded = urllib.urlencode(data)
+    response = _get_response(session, username, password, url, data, **kwargs)
+    response_page = response.text
 
     # We need to parse the Request ID from the returning HTML page
     try:
@@ -146,9 +157,9 @@ def get_cert(server, csr, template, username, password, encoding='b64', **kwargs
                 error = 'An unknown error occured'
             raise RequestDeniedException(error, response_page)
 
-    return get_existing_cert(server, req_id, username, password, encoding, **kwargs)
+    return get_existing_cert(session, server, req_id, username, password, encoding, **kwargs)
 
-def get_existing_cert(server, req_id, username, password, encoding='b64', **kwargs):
+def get_existing_cert(session, server, req_id, username, password, encoding='b64', **kwargs):
     """
     Gets a certificate that has already been created.
 
@@ -172,12 +183,12 @@ def get_existing_cert(server, req_id, username, password, encoding='b64', **kwar
     .. note:: The cafile parameter does not work with NTLM authentication.
     """
 
-    cert_url = 'https://%s/certsrv/certnew.cer?ReqID=%s&Enc=%s' % (server, req_id, encoding)
+    cert_url = 'https://{}/certsrv/certnew.cer?ReqID={}&Enc={}'.format(server, req_id, encoding)
 
-    response = _get_response(username, password, cert_url, None, **kwargs)
-    response_content = response.read()
+    response = _get_response(session, username, password, cert_url, None, **kwargs)
+    response_content = response.text
 
-    if response.headers.type != 'application/pkix-cert':
+    if response.headers['Content-Type'] != 'application/pkix-cert':
         # The response was not a cert. Something must have gone wrong
         try:
             error = re.search('Disposition message:[^\t]+\t\t([^\r\n]+)', response_content).group(1)
@@ -187,7 +198,7 @@ def get_existing_cert(server, req_id, username, password, encoding='b64', **kwar
     else:
         return response_content
 
-def get_ca_cert(server, username, password, encoding='b64', **kwargs):
+def get_ca_cert(session, username, password, encoding='b64', **kwargs):
     """
     Gets the (newest) CA certificate from a Microsoft AD Certificate Services web page.
 
@@ -207,22 +218,21 @@ def get_ca_cert(server, username, password, encoding='b64', **kwargs):
     .. note:: The cafile parameter does not work with NTLM authentication.
     """
 
-    url = 'https://%s/certsrv/certcarc.asp' % server
+    url = 'https://{}/certsrv/certcarc.asp'.format(server)
 
-    response = _get_response(username, password, url, None, **kwargs)
-    response_page = response.read()
+    response = _get_response(session, username, password, url, None, **kwargs)
+    response_page = response.text
 
     # We have to check how many renewals this server has had, so that we get the newest CA cert
     renewals = re.search(r'var nRenewals=(\d+);', response_page).group(1)
 
-    cert_url = 'https://%s/certsrv/certnew.cer?ReqID=CACert&Renewal=%s&Enc=%s' % (server,
-                                                                                  renewals,
-                                                                                  encoding)
-    response = _get_response(username, password, cert_url, None, **kwargs)
-    cert = response.read()
+    cert_url = 'https://{}/certsrv/certnew.cer?ReqID=CACert&Renewal={}&Enc={}'.format(
+        server, renewals, encoding)
+    response = _get_response(session, username, password, cert_url, None, **kwargs)
+    cert = response.text
     return cert
 
-def get_chain(server, username, password, encoding='bin', **kwargs):
+def get_chain(session, server, username, password, encoding='bin', **kwargs):
     """
     Gets the chain from a Microsoft AD Certificate Services web page.
 
@@ -241,19 +251,18 @@ def get_chain(server, username, password, encoding='bin', **kwargs):
 
     .. note:: The cafile parameter does not work with NTLM authentication.
     """
-    url = 'https://%s/certsrv/certcarc.asp' % server
+    url = 'https://{}/certsrv/certcarc.asp'.format(server)
 
-    response = _get_response(username, password, url, None, **kwargs)
-    response_page = response.read()
+    response = _get_response(session, username, password, url, None, **kwargs)
+    response_page = response.text
     # We have to check how many renewals this server has had, so that we get the newest chain
     renewals = re.search(r'var nRenewals=(\d+);', response_page).group(1)
-    chain_url = 'https://%s/certsrv/certnew.p7b?ReqID=CACert&Renewal=%s&Enc=%s' % (server,
-                                                                                   renewals,
-                                                                                   encoding)
-    chain = _get_response(username, password, chain_url, None, **kwargs).read()
+    chain_url = 'https://{}/certsrv/certnew.p7b?ReqID=CACert&Renewal={}&Enc={}'.format(
+        server, renewals, encoding)
+    chain = _get_response(session, username, password, chain_url, None, **kwargs).read()
     return chain
 
-def check_credentials(server, username, password, **kwargs):
+def check_credentials(session, server, username, password, **kwargs):
     """
     Checks the specified credentials against the specified ADCS server
 
@@ -271,11 +280,11 @@ def check_credentials(server, username, password, **kwargs):
     .. note:: The cafile parameter does not work with NTLM authentication.
     """
 
-    url = 'https://%s/certsrv/' % server
+    url = 'https://{}/certsrv/'.format(server)
 
     try:
-        _get_response(username, password, url, None, **kwargs)
-    except urllib2.HTTPError, error:
+        _get_response(session, username, password, url, None, **kwargs)
+    except urllib.error.HTTPError as error:
         if error.code == 401:
             return False
         else:
