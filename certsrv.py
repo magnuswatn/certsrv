@@ -15,25 +15,35 @@ logger = logging.getLogger(__name__)
 
 TIMEOUT = 30
 
+
 class RequestDeniedException(Exception):
     """Signifies that the request was denied by the ADCS server."""
+
     def __init__(self, message, response):
         Exception.__init__(self, message)
         self.response = response
+
 
 class CouldNotRetrieveCertificateException(Exception):
     """Signifies that the certificate could not be retrieved."""
+
     def __init__(self, message, response):
         Exception.__init__(self, message)
         self.response = response
 
+
 class CertificatePendingException(Exception):
     """Signifies that the request needs to be approved by a CA admin."""
+
     def __init__(self, req_id):
-        Exception.__init__(self, 'Your certificate request has been received. '
-                                 'However, you must wait for an administrator to issue the'
-                                 'certificate you requested. Your Request Id is %s.' % req_id)
+        Exception.__init__(
+            self,
+            "Your certificate request has been received. "
+            "However, you must wait for an administrator to issue the"
+            "certificate you requested. Your Request Id is {}.".format(req_id),
+        )
         self.req_id = req_id
+
 
 class Certsrv(object):
     """
@@ -48,8 +58,10 @@ class Certsrv(object):
         cafile: A PEM file containing the CA certificates that should be trusted
         timeout: The timeout to use against the CA server, in seconds. The default is 30.
     """
+
     def __init__(self, server, username, password, auth_method="basic",
                  cafile=None, timeout=TIMEOUT):
+
         self.server = server
         self.timeout = timeout
         self.session = requests.Session()
@@ -59,6 +71,7 @@ class Certsrv(object):
 
         if auth_method == "ntlm":
             from requests_ntlm import HttpNtlmAuth
+
             self.session.auth = HttpNtlmAuth(username, password)
         else:
             self.session.auth = (username, password)
@@ -66,9 +79,8 @@ class Certsrv(object):
         # We need certsrv to think we are a browser, or otherwise the Content-Type of the
         # retrieved certificate will be wrong (for some reason)
         self.session.headers = {
-            'User-agent': 'Mozilla/5.0 certsrv (https://github.com/magnuswatn/certsrv)'
+            "User-agent": "Mozilla/5.0 certsrv (https://github.com/magnuswatn/certsrv)"
         }
-
 
     def _get(self, url, **kwargs):
         response = self.session.get(url, timeout=self.timeout, **kwargs)
@@ -120,11 +132,11 @@ class Certsrv(object):
         data = {
             "Mode": "newreq",
             "CertRequest": csr,
-            "CertAttrib": "CertificateTemplate:%s" % template,
+            "CertAttrib": "CertificateTemplate:{}".format(template),
             "UserAgent": "certsrv (https://github.com/magnuswatn/certsrv)",
             "FriendlyType": "Saved-Request Certificate",
             "TargetStoreFlags": "0",
-            "SaveCert": "yes"
+            "SaveCert": "yes",
         }
 
         url = "https://{}/certsrv/certfnsh.asp".format(self.server)
@@ -143,8 +155,7 @@ class Certsrv(object):
                 # Must have failed. Lets find the error message and raise a RequestDeniedException
                 try:
                     error = re.search(
-                        r'The disposition message is "([^"]+)',
-                        response.text
+                        r'The disposition message is "([^"]+)', response.text
                     ).group(1)
                 except AttributeError:
                     error = "An unknown error occured"
@@ -177,8 +188,7 @@ class Certsrv(object):
             # The response was not a cert. Something must have gone wrong
             try:
                 error = re.search(
-                    "Disposition message:[^\t]+\t\t([^\r\n]+)",
-                    response.text
+                    "Disposition message:[^\t]+\t\t([^\r\n]+)", response.text
                 ).group(1)
 
             except AttributeError:
@@ -211,7 +221,9 @@ class Certsrv(object):
         response = self._get(cert_url, params=params)
 
         if response.headers["Content-Type"] != "application/pkix-cert":
-            raise CouldNotRetrieveCertificateException("An unknown error occured", response.content)
+            raise CouldNotRetrieveCertificateException(
+                "An unknown error occured", response.content
+            )
 
         return response.content
 
@@ -231,7 +243,7 @@ class Certsrv(object):
         response = self._get(url)
 
         # We have to check how many renewals this server has had, so that we get the newest chain
-        renewals = re.search(r'var nRenewals=(\d+);', response.text).group(1)
+        renewals = re.search(r"var nRenewals=(\d+);", response.text).group(1)
 
         chain_url = "https://{}/certsrv/certnew.p7b".format(self.server)
         params = {"ReqID": "CACert", "Renewal": renewals, "Enc": encoding}
@@ -240,8 +252,7 @@ class Certsrv(object):
 
         if chain_response.headers["Content-Type"] != "application/x-pkcs7-certificates":
             raise CouldNotRetrieveCertificateException(
-                "An unknown error occured",
-                chain_response.content,
+                "An unknown error occured", chain_response.content
             )
 
         return chain_response.content
@@ -264,7 +275,8 @@ class Certsrv(object):
                 raise
         return True
 
-def get_cert(server, csr, template, username, password, encoding='b64', **kwargs):
+
+def get_cert(server, csr, template, username, password, encoding="b64", **kwargs):
     """
     Gets a certificate from a Microsoft AD Certificate Services web page.
 
@@ -293,12 +305,13 @@ def get_cert(server, csr, template, username, password, encoding='b64', **kwargs
     """
     warnings.warn(
         "This function is deprecated. Use the method on the Certsrv class instead",
-        DeprecationWarning
+        DeprecationWarning,
     )
     certsrv = Certsrv(server, username, password, **kwargs)
     return certsrv.get_cert(csr, template, encoding)
 
-def get_existing_cert(server, req_id, username, password, encoding='b64', **kwargs):
+
+def get_existing_cert(server, req_id, username, password, encoding="b64", **kwargs):
     """
     Gets a certificate that has already been created.
 
@@ -323,12 +336,13 @@ def get_existing_cert(server, req_id, username, password, encoding='b64', **kwar
     """
     warnings.warn(
         "This function is deprecated. Use the method on the Certsrv class instead",
-        DeprecationWarning
+        DeprecationWarning,
     )
     certsrv = Certsrv(server, username, password, **kwargs)
     return certsrv.get_existing_cert(req_id, encoding)
 
-def get_ca_cert(server, username, password, encoding='b64', **kwargs):
+
+def get_ca_cert(server, username, password, encoding="b64", **kwargs):
     """
     Gets the (newest) CA certificate from a Microsoft AD Certificate Services web page.
 
@@ -349,12 +363,13 @@ def get_ca_cert(server, username, password, encoding='b64', **kwargs):
     """
     warnings.warn(
         "This function is deprecated. Use the method on the Certsrv class instead",
-        DeprecationWarning
+        DeprecationWarning,
     )
     certsrv = Certsrv(server, username, password, **kwargs)
     return certsrv.get_ca_cert(encoding)
 
-def get_chain(server, username, password, encoding='bin', **kwargs):
+
+def get_chain(server, username, password, encoding="bin", **kwargs):
     """
     Gets the chain from a Microsoft AD Certificate Services web page.
 
@@ -375,10 +390,11 @@ def get_chain(server, username, password, encoding='bin', **kwargs):
     """
     warnings.warn(
         "This function is deprecated. Use the method on the Certsrv class instead",
-        DeprecationWarning
+        DeprecationWarning,
     )
     certsrv = Certsrv(server, username, password, **kwargs)
     return certsrv.get_chain(encoding)
+
 
 def check_credentials(server, username, password, **kwargs):
     """
@@ -399,7 +415,7 @@ def check_credentials(server, username, password, **kwargs):
     """
     warnings.warn(
         "This function is deprecated. Use the method on the Certsrv class instead",
-        DeprecationWarning
+        DeprecationWarning,
     )
     certsrv = Certsrv(server, username, password, **kwargs)
     return certsrv.check_credentials()
