@@ -1,19 +1,18 @@
 import os
-from urllib2 import URLError
 
 import pytest
 import certsrv
 import OpenSSL
 
-from urllib2 import HTTPError
+from requests.exceptions import RequestException, SSLError
 
 def create_csr():
     key = OpenSSL.crypto.PKey()
     key.generate_key(OpenSSL.crypto.TYPE_RSA, 2048)
     req = OpenSSL.crypto.X509Req()
     req.get_subject().CN='certsrv-test-cert.no'
-    san = 'DNS: certsrv-test-cert.no'
-    san_extension = OpenSSL.crypto.X509Extension("subjectAltName", False, san)
+    san = b'DNS: certsrv-test-cert.no'
+    san_extension = OpenSSL.crypto.X509Extension(b"subjectAltName", False, san)
     req.add_extensions([san_extension])
     req.set_pubkey(key)
     req.sign(key, 'sha256')
@@ -104,13 +103,13 @@ def test_get_chain_pem(opt_adcs, opt_username, opt_password):
     pem_chain = certsrv.get_chain(opt_adcs, opt_username, opt_password, 'b64')
     # pyOpenSSL does not have an option to parse PKCS#7,
     # so we just check that it is the right encoding
-    assert '-----BEGIN CERTIFICATE-----' in pem_chain
+    assert b'-----BEGIN CERTIFICATE-----' in pem_chain
 
 def test_get_chain_der(opt_adcs, opt_username, opt_password):
     der_chain = certsrv.get_chain(opt_adcs, opt_username, opt_password)
     # pyOpenSSL does not have an option to parse PKCS#7,
     # so we just check that it is the right encoding
-    assert '-----BEGIN CERTIFICATE-----' not in der_chain
+    assert b'-----BEGIN CERTIFICATE-----' not in der_chain
 
 def test_get_cert_with_ntlm(opt_adcs, opt_username, opt_password, opt_template):
     csr = create_csr()
@@ -140,18 +139,17 @@ def test_get_chain_with_ntlm(opt_adcs, opt_username, opt_password):
     pem_chain = certsrv.get_chain(opt_adcs, opt_username, opt_password, 'b64', auth_method='ntlm')
     # pyOpenSSL does not have an option to parse PKCS#7,
     # so we just check that it is the right encoding
-    assert '-----BEGIN CERTIFICATE-----' in pem_chain
+    assert b'-----BEGIN CERTIFICATE-----' in pem_chain
 
 def test_wrong_credentials(opt_adcs, opt_username, opt_password):
-    with pytest.raises(HTTPError) as excinfo:
+    with pytest.raises(RequestException) as excinfo:
         certsrv.get_existing_cert(opt_adcs, -1, 'wronguser', 'wrongpassword')
-    assert excinfo.value.msg == 'Unauthorized'
+    assert excinfo.value.response.reason == 'Unauthorized'
 
 def test_wrong_credentials_with_ntlm(opt_adcs, opt_username, opt_password):
-    # We should throw a HTTPError even when ntlm auth
-    with pytest.raises(HTTPError) as excinfo:
+    with pytest.raises(RequestException) as excinfo:
         certsrv.get_existing_cert(opt_adcs, -1, 'wronguser', 'wrongpassword', auth_method='ntlm')
-    assert excinfo.value.msg == 'Unauthorized'
+    assert excinfo.value.response.reason == 'Unauthorized'
 
 
 # The test cases assume that the system trusts the adcs server certificate.
@@ -160,37 +158,32 @@ def test_wrong_credentials_with_ntlm(opt_adcs, opt_username, opt_password):
 def test_check_credentials_with_wrong_cafile(opt_adcs):
     dir_path = os.path.dirname(os.path.realpath(__file__))
     ca_bundle = '%s/test_dummy-ca-cert.pem' % dir_path
-    with pytest.raises(URLError) as excinfo:
+    with pytest.raises(SSLError) as excinfo:
         certsrv.check_credentials(opt_adcs, 'username', 'password', cafile=ca_bundle)
-    assert excinfo.value.reason.reason == 'CERTIFICATE_VERIFY_FAILED'
 
 def test_get_chain_with_wrong_cafile(opt_adcs):
     dir_path = os.path.dirname(os.path.realpath(__file__))
     ca_bundle = '%s/test_dummy-ca-cert.pem' % dir_path
-    with pytest.raises(URLError) as excinfo:
+    with pytest.raises(SSLError) as excinfo:
         certsrv.get_chain(opt_adcs, 'username', 'password', cafile=ca_bundle)
-    assert excinfo.value.reason.reason == 'CERTIFICATE_VERIFY_FAILED'
 
 def test_get_ca_cert_with_wrong_cafile(opt_adcs):
     dir_path = os.path.dirname(os.path.realpath(__file__))
     ca_bundle = '%s/test_dummy-ca-cert.pem' % dir_path
-    with pytest.raises(URLError) as excinfo:
+    with pytest.raises(SSLError) as excinfo:
         certsrv.get_ca_cert(opt_adcs, 'username', 'password', cafile=ca_bundle)
-    assert excinfo.value.reason.reason == 'CERTIFICATE_VERIFY_FAILED'
 
 def test_get_existing_cert_with_wrong_cafile(opt_adcs):
     dir_path = os.path.dirname(os.path.realpath(__file__))
     ca_bundle = '%s/test_dummy-ca-cert.pem' % dir_path
-    with pytest.raises(URLError) as excinfo:
+    with pytest.raises(SSLError) as excinfo:
         certsrv.get_existing_cert(opt_adcs, 1, 'username', 'password', cafile=ca_bundle)
-    assert excinfo.value.reason.reason == 'CERTIFICATE_VERIFY_FAILED'
 
 def test_get_cert_with_wrong_cafile(opt_adcs):
     dir_path = os.path.dirname(os.path.realpath(__file__))
     ca_bundle = '%s/test_dummy-ca-cert.pem' % dir_path
-    with pytest.raises(URLError) as excinfo:
+    with pytest.raises(SSLError) as excinfo:
         certsrv.get_cert(opt_adcs, 'fake csr', 'Template', 'username', 'password', cafile=ca_bundle)
-    assert excinfo.value.reason.reason == 'CERTIFICATE_VERIFY_FAILED'
 
 # These functions does several https request, so to be certain the cafile param works on all
 # we need a positive test. We reset the trust by using the SSL_CERT_FILE environment variable
@@ -222,4 +215,4 @@ def test_get_chain_with_cafile(opt_adcs, opt_username, opt_password, opt_cafile)
     pem_chain = certsrv.get_chain(opt_adcs, opt_username, opt_password, 'b64', cafile=opt_cafile)
     # pyOpenSSL does not have an option to parse PKCS#7,
     # so we just check that it is the right encoding
-    assert '-----BEGIN CERTIFICATE-----' in pem_chain
+    assert b'-----BEGIN CERTIFICATE-----' in pem_chain
