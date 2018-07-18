@@ -211,7 +211,7 @@ class Certsrv(object):
         response = self._get(cert_url, params=params)
 
         if response.headers["Content-Type"] != "application/pkix-cert":
-            raise CouldNotRetrieveCertificateException("An unkown error occured", response.content)
+            raise CouldNotRetrieveCertificateException("An unknown error occured", response.content)
 
         return response.content
 
@@ -240,7 +240,7 @@ class Certsrv(object):
 
         if chain_response.headers["Content-Type"] != "application/x-pkcs7-certificates":
             raise CouldNotRetrieveCertificateException(
-                "An unkown error occured",
+                "An unknown error occured",
                 chain_response.content,
             )
 
