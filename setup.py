@@ -16,7 +16,7 @@ def read_file(filename, encoding='utf8'):
 # read version number from the script
 here = os.path.abspath(os.path.dirname(__file__))
 script_path = os.path.join(here, 'certsrv.py')
-version = dict(re.findall(r"""__([a-z]+)__ = '([^']+)""", read_file(script_path)))['version']
+version = dict(re.findall(r"""__([a-z]+)__ = "([^"]+)""", read_file(script_path)))['version']
 
 readme = read_file(os.path.join(here, 'README.rst'))
 
