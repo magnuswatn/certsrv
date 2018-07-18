@@ -4,11 +4,16 @@ A Python client for the Microsoft AD Certificate Services web page.
 https://github.com/magnuswatn/certsrv
 """
 import re
-import urllib
-import urllib2
+import base64
+import logging
+import warnings
+import requests
 
+__version__ = "2.0.0"
 
-__version__ = '1.6.1'
+logger = logging.getLogger(__name__)
+
+TIMEOUT = 30
 
 class RequestDeniedException(Exception):
     """Signifies that the request was denied by the ADCS server."""
@@ -30,63 +35,234 @@ class CertificatePendingException(Exception):
                                  'certificate you requested. Your Request Id is %s.' % req_id)
         self.req_id = req_id
 
-def _get_response(username, password, url, data, **kwargs):
+class Certsrv(object):
     """
-    Helper Function to execute the HTTP request againts the given url.
+    Represents a Microsoft AD Certificate Services web server.
 
     Args:
-      username: The username for authentication
-      pasword: The password for authentication
-      url: URL for Request
-      data: The data to send
-      auth_method: The Authentication Methos to use. (basic or ntlm)
-      cafile: A PEM file containing the CA certificates that should be trusted
-              (only works with basic auth)
-
-    Returns:
-      HTTP Response
-
+        server: The FQDN to a server running the Certification Authority
+                Web Enrollment role (must be listening on https)
+        username: The username for authentication
+        password: The password for authentication
+        auth_method: The chosen authentication method. Either 'basic' (the default) or 'ntlm'
+        cafile: A PEM file containing the CA certificates that should be trusted
+        timeout: The timeout to use against the CA server, in seconds. The default is 30.
     """
-    cafile = kwargs.pop('cafile', None)
-    auth_method = kwargs.pop('auth_method', 'basic')
-    if kwargs:
-        raise TypeError('Unexpected argument: %r' % kwargs)
+    def __init__(self, server, username, password, auth_method="basic",
+                 cafile=None, timeout=TIMEOUT):
+        self.server = server
+        self.timeout = timeout
+        self.session = requests.Session()
 
-    # We need certsrv to think we are a browser, or otherwise the Content-Type of the
-    # retrieved certificate will be wrong (for some reason)
-    headers = {'User-agent': 'Mozilla/5.0 certsrv (https://github.com/magnuswatn/certsrv)'}
+        if cafile:
+            self.session.verify = cafile
 
-    req = urllib2.Request(url, data, headers)
+        if auth_method == "ntlm":
+            from requests_ntlm import HttpNtlmAuth
+            self.session.auth = HttpNtlmAuth(username, password)
+        else:
+            self.session.auth = (username, password)
 
-    if auth_method == "ntlm":
-        # We use the HTTPNtlmAuthHandler from python-ntlm for NTLM auth
-        from ntlm import HTTPNtlmAuthHandler
+        # We need certsrv to think we are a browser, or otherwise the Content-Type of the
+        # retrieved certificate will be wrong (for some reason)
+        self.session.headers = {
+            'User-agent': 'Mozilla/5.0 certsrv (https://github.com/magnuswatn/certsrv)'
+        }
 
-        passman = urllib2.HTTPPasswordMgrWithDefaultRealm()
-        passman.add_password(None, url, username, password)
-        auth_handler = HTTPNtlmAuthHandler.HTTPNtlmAuthHandler(passman)
-        opener = urllib2.build_opener(auth_handler)
-        urllib2.install_opener(opener)
-    else:
-      # We don't bother with HTTPBasicAuthHandler for basic auth, since
-      # it doesn't add the credentials before receiving an 401 challange
-      # as thus doubless the requests unnecessary.
-      # Plus, it's easier just to add the header ourselves
-        req.add_header('Authorization', 'Basic %s' %
-                       urllib2.base64.b64encode('%s:%s' % (username, password)))
 
-    if cafile:
-        response = urllib2.urlopen(req, cafile=cafile)
-    else:
-        response = urllib2.urlopen(req)
+    def _get(self, url, **kwargs):
+        response = self.session.get(url, timeout=self.timeout, **kwargs)
 
-    # The response code is not validated when using the HTTPNtlmAuthHandler
-    # so we have to check it ourselves
-    if response.code == 200:
+        logger.debug(
+            "Sent %s request to %s, with headers:\n%s\n\nand body:\n%s",
+            response.request.method,
+            response.request.url,
+            "\n".join(
+                ["{0}: {1}".format(k, v) for k, v in response.request.headers.items()]
+            ),
+            response.request.body,
+        )
+
+        try:
+            debug_content = response.content.decode()
+        except UnicodeDecodeError:
+            debug_content = base64.b64encode(response.content)
+
+        logger.debug(
+            "Recieved response:\nHTTP %s\n%s\n\n%s",
+            response.status_code,
+            "\n".join(["{0}: {1}".format(k, v) for k, v in response.headers.items()]),
+            debug_content,
+        )
+
+        response.raise_for_status()
+
         return response
-    else:
-        raise urllib2.HTTPError(response.url, response.code, response.msg,
-                                response.headers, response.fp)
+
+    def get_cert(self, csr, template, encoding="b64"):
+        """
+        Gets a certificate from the server.
+
+        Args:
+            csr: The certificate request to submit
+            template: The certificate template the cert should be issued from
+            encoding: The desired encoding for the returned certificate.
+                      Possible values are "bin" for binary and "b64" for Base64 (PEM)
+
+        Returns:
+            The issued certificate
+
+        Raises:
+            RequestDeniedException: If the request was denied by the ADCS server
+            CertificatePendingException: If the request needs to be approved by a CA admin
+            CouldNotRetrieveCertificateException: If something went wrong while fetching the cert
+        """
+        data = {
+            "Mode": "newreq",
+            "CertRequest": csr,
+            "CertAttrib": "CertificateTemplate:%s" % template,
+            "UserAgent": "certsrv (https://github.com/magnuswatn/certsrv)",
+            "FriendlyType": "Saved-Request Certificate",
+            "TargetStoreFlags": "0",
+            "SaveCert": "yes"
+        }
+
+        url = "https://{}/certsrv/certfnsh.asp".format(self.server)
+
+        response = self._get(url, data=data)
+
+        # We need to parse the Request ID from the returning HTML page
+        try:
+            req_id = re.search(r"certnew.cer\?ReqID=(\d+)&", response.text).group(1)
+        except AttributeError:
+            # We didn't find any request ID in the response. It may need approval.
+            if re.search(r"Certificate Pending", response.text):
+                req_id = re.search(r"Your Request Id is (\d+).", response.text).group(1)
+                raise CertificatePendingException(req_id)
+            else:
+                # Must have failed. Lets find the error message and raise a RequestDeniedException
+                try:
+                    error = re.search(
+                        r'The disposition message is "([^"]+)',
+                        response.text
+                    ).group(1)
+                except AttributeError:
+                    error = "An unknown error occured"
+                raise RequestDeniedException(error, response.text)
+
+        return self.get_existing_cert(req_id, encoding)
+
+    def get_existing_cert(self, req_id, encoding="b64"):
+        """
+        Gets a certificate that has already been created.
+
+        Args:
+            req_id: The request ID to retrieve
+            encoding: The desired encoding for the returned certificate.
+                    Possible values are "bin" for binary and "b64" for Base64 (PEM)
+
+        Returns:
+            The issued certificate
+
+        Raises:
+            CouldNotRetrieveCertificateException: If something went wrong while fetching the cert
+        """
+
+        cert_url = "https://{}/certsrv/certnew.cer".format(self.server)
+        params = {"ReqID": req_id, "Enc": encoding}
+
+        response = self._get(cert_url, params=params)
+
+        if response.headers["Content-Type"] != "application/pkix-cert":
+            # The response was not a cert. Something must have gone wrong
+            try:
+                error = re.search(
+                    "Disposition message:[^\t]+\t\t([^\r\n]+)",
+                    response.text
+                ).group(1)
+
+            except AttributeError:
+                error = "An unknown error occured"
+            raise CouldNotRetrieveCertificateException(error, response.text)
+        else:
+            return response.content
+
+    def get_ca_cert(self, encoding="b64"):
+        """
+        Gets the (newest) CA certificate from a Microsoft AD Certificate Services web page.
+
+        Args:
+            encoding: The desired encoding for the returned certificate.
+                    Possible values are "bin" for binary and "b64" for Base64 (PEM)
+
+        Returns:
+            The newest CA certificate from the server
+        """
+        url = "https://{}/certsrv/certcarc.asp".format(self.server)
+
+        response = self._get(url)
+
+        # We have to check how many renewals this server has had, so that we get the newest CA cert
+        renewals = re.search(r"var nRenewals=(\d+);", response.text).group(1)
+
+        cert_url = "https://{}/certsrv/certnew.cer".format(self.server)
+        params = {"ReqID": "CACert", "Enc": encoding, "Renewal": renewals}
+
+        response = self._get(cert_url, params=params)
+
+        if response.headers["Content-Type"] != "application/pkix-cert":
+            raise CouldNotRetrieveCertificateException("An unkown error occured", response.content)
+
+        return response.content
+
+    def get_chain(self, encoding="bin"):
+        """
+        Gets the chain from a Microsoft AD Certificate Services web page.
+
+        Args:
+            encoding: The desired encoding for the returned certificates.
+                    Possible values are "bin" for binary and "b64" for Base64 (PEM)
+
+        Returns:
+            The CA chain from the server, in PKCS#7 format
+        """
+        url = "https://{}/certsrv/certcarc.asp".format(self.server)
+
+        response = self._get(url)
+
+        # We have to check how many renewals this server has had, so that we get the newest chain
+        renewals = re.search(r'var nRenewals=(\d+);', response.text).group(1)
+
+        chain_url = "https://{}/certsrv/certnew.p7b".format(self.server)
+        params = {"ReqID": "CACert", "Renewal": renewals, "Enc": encoding}
+
+        chain_response = self._get(chain_url, params=params)
+
+        if chain_response.headers["Content-Type"] != "application/x-pkcs7-certificates":
+            raise CouldNotRetrieveCertificateException(
+                "An unkown error occured",
+                chain_response.content,
+            )
+
+        return chain_response.content
+
+    def check_credentials(self):
+        """
+        Checks the specified credentials against the specified ADCS server
+
+        Returns:
+            True if authentication succeeded, False if it failed.
+        """
+        url = "https://{}/certsrv/".format(self.server)
+
+        try:
+            self._get(url)
+        except requests.exceptions.HTTPError as error:
+            if error.response.status_code == 401:
+                return False
+            else:
+                raise
+        return True
 
 def get_cert(server, csr, template, username, password, encoding='b64', **kwargs):
     """
@@ -112,41 +288,15 @@ def get_cert(server, csr, template, username, password, encoding='b64', **kwargs
         CertificatePendingException: If the request needs to be approved by a CA admin
         CouldNotRetrieveCertificateException: If something went wrong while fetching the cert
 
-    .. note:: The cafile parameter does not work with NTLM authentication.
+    .. note:: This method is deprecated.
 
     """
-    data = {
-        'Mode': 'newreq',
-        'CertRequest': csr,
-        'CertAttrib': 'CertificateTemplate:%s' % template,
-        'UserAgent': 'certsrv (https://github.com/magnuswatn/certsrv)',
-        'FriendlyType': 'Saved-Request Certificate',
-        'TargetStoreFlags': '0',
-        'SaveCert': 'yes'
-    }
-
-    url = 'https://%s/certsrv/certfnsh.asp' % server
-    data_encoded = urllib.urlencode(data)
-    response = _get_response(username, password, url, data_encoded, **kwargs)
-    response_page = response.read()
-
-    # We need to parse the Request ID from the returning HTML page
-    try:
-        req_id = re.search(r'certnew.cer\?ReqID=(\d+)&', response_page).group(1)
-    except AttributeError:
-        # We didn't find any request ID in the response. It may need approval.
-        if re.search(r'Certificate Pending', response_page):
-            req_id = re.search(r'Your Request Id is (\d+).', response_page).group(1)
-            raise CertificatePendingException(req_id)
-        else:
-            # Must have failed. Lets find the error message and raise a RequestDeniedException
-            try:
-                error = re.search(r'The disposition message is "([^"]+)', response_page).group(1)
-            except AttributeError:
-                error = 'An unknown error occured'
-            raise RequestDeniedException(error, response_page)
-
-    return get_existing_cert(server, req_id, username, password, encoding, **kwargs)
+    warnings.warn(
+        "This function is deprecated. Use the method on the Certsrv class instead",
+        DeprecationWarning
+    )
+    certsrv = Certsrv(server, username, password, **kwargs)
+    return certsrv.get_cert(csr, template, encoding)
 
 def get_existing_cert(server, req_id, username, password, encoding='b64', **kwargs):
     """
@@ -169,23 +319,14 @@ def get_existing_cert(server, req_id, username, password, encoding='b64', **kwar
     Raises:
         CouldNotRetrieveCertificateException: If something went wrong while fetching the cert
 
-    .. note:: The cafile parameter does not work with NTLM authentication.
+    .. note:: This method is deprecated.
     """
-
-    cert_url = 'https://%s/certsrv/certnew.cer?ReqID=%s&Enc=%s' % (server, req_id, encoding)
-
-    response = _get_response(username, password, cert_url, None, **kwargs)
-    response_content = response.read()
-
-    if response.headers.type != 'application/pkix-cert':
-        # The response was not a cert. Something must have gone wrong
-        try:
-            error = re.search('Disposition message:[^\t]+\t\t([^\r\n]+)', response_content).group(1)
-        except AttributeError:
-            error = 'An unknown error occured'
-        raise CouldNotRetrieveCertificateException(error, response_content)
-    else:
-        return response_content
+    warnings.warn(
+        "This function is deprecated. Use the method on the Certsrv class instead",
+        DeprecationWarning
+    )
+    certsrv = Certsrv(server, username, password, **kwargs)
+    return certsrv.get_existing_cert(req_id, encoding)
 
 def get_ca_cert(server, username, password, encoding='b64', **kwargs):
     """
@@ -204,23 +345,14 @@ def get_ca_cert(server, username, password, encoding='b64', **kwargs):
     Returns:
         The newest CA certificate from the server
 
-    .. note:: The cafile parameter does not work with NTLM authentication.
+    .. note:: This method is deprecated.
     """
-
-    url = 'https://%s/certsrv/certcarc.asp' % server
-
-    response = _get_response(username, password, url, None, **kwargs)
-    response_page = response.read()
-
-    # We have to check how many renewals this server has had, so that we get the newest CA cert
-    renewals = re.search(r'var nRenewals=(\d+);', response_page).group(1)
-
-    cert_url = 'https://%s/certsrv/certnew.cer?ReqID=CACert&Renewal=%s&Enc=%s' % (server,
-                                                                                  renewals,
-                                                                                  encoding)
-    response = _get_response(username, password, cert_url, None, **kwargs)
-    cert = response.read()
-    return cert
+    warnings.warn(
+        "This function is deprecated. Use the method on the Certsrv class instead",
+        DeprecationWarning
+    )
+    certsrv = Certsrv(server, username, password, **kwargs)
+    return certsrv.get_ca_cert(encoding)
 
 def get_chain(server, username, password, encoding='bin', **kwargs):
     """
@@ -239,19 +371,14 @@ def get_chain(server, username, password, encoding='bin', **kwargs):
     Returns:
         The CA chain from the server, in PKCS#7 format
 
-    .. note:: The cafile parameter does not work with NTLM authentication.
+    .. note:: This method is deprecated.
     """
-    url = 'https://%s/certsrv/certcarc.asp' % server
-
-    response = _get_response(username, password, url, None, **kwargs)
-    response_page = response.read()
-    # We have to check how many renewals this server has had, so that we get the newest chain
-    renewals = re.search(r'var nRenewals=(\d+);', response_page).group(1)
-    chain_url = 'https://%s/certsrv/certnew.p7b?ReqID=CACert&Renewal=%s&Enc=%s' % (server,
-                                                                                   renewals,
-                                                                                   encoding)
-    chain = _get_response(username, password, chain_url, None, **kwargs).read()
-    return chain
+    warnings.warn(
+        "This function is deprecated. Use the method on the Certsrv class instead",
+        DeprecationWarning
+    )
+    certsrv = Certsrv(server, username, password, **kwargs)
+    return certsrv.get_chain(encoding)
 
 def check_credentials(server, username, password, **kwargs):
     """
@@ -268,17 +395,11 @@ def check_credentials(server, username, password, **kwargs):
     Returns:
         True if authentication succeeded, False if it failed.
 
-    .. note:: The cafile parameter does not work with NTLM authentication.
+    .. note:: This method is deprecated.
     """
-
-    url = 'https://%s/certsrv/' % server
-
-    try:
-        _get_response(username, password, url, None, **kwargs)
-    except urllib2.HTTPError, error:
-        if error.code == 401:
-            return False
-        else:
-            raise
-    else:
-        return True
+    warnings.warn(
+        "This function is deprecated. Use the method on the Certsrv class instead",
+        DeprecationWarning
+    )
+    certsrv = Certsrv(server, username, password, **kwargs)
+    return certsrv.check_credentials()
