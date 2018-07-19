@@ -172,6 +172,3 @@ texinfo_documents = [
      author, 'certsrv', 'A Python client for the Microsoft AD Certificate Services web page',
      'Miscellaneous'),
 ]
-
-
-

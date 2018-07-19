@@ -23,8 +23,8 @@ Prerequisites
 -------------
 
 The IIS server must listen on HTTPS with a valid (trusted by the client)
-certificate. It is recommended to enable basic auth on IIS, but NTLM is 
-also supported through the `python-ntlm package <https://pypi.python.org/pypi/python-ntlm>`_
+certificate. It is recommended to enable basic auth on IIS, but NTLM is
+also supported through the `requests_ntlm package <https://pypi.org/project/requests_ntlm/>`_
 
 Disclaimer
 ----------
@@ -35,16 +35,8 @@ certsrv application.
 
 Luckily (or sadly?) they haven’t changed much in the last 19 years…
 
-This is testet against Windows 2008R2 and 2012R2, but I’m sure it works
-on everything from 2003 to 2016.
-
-Note on certificate validation
-------------------------------
-
-Python has a sad history of not checking SSL certificates.
-If you are using Red Hat, you must explicitly enable it.
-
-See: https://access.redhat.com/articles/2039753
+Certsrv has been tested against Windows 2008R2, 2012R2 and 2016, but I’m sure it works
+on everything from 2003 to 2019.
 
 GitHub
 ------
