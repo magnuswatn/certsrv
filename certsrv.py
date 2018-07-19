@@ -3,6 +3,7 @@ A Python client for the Microsoft AD Certificate Services web page.
 
 https://github.com/magnuswatn/certsrv
 """
+import os
 import re
 import base64
 import logging
@@ -68,6 +69,13 @@ class Certsrv(object):
 
         if cafile:
             self.session.verify = cafile
+        else:
+            # requests uses it's own CA bundle by default
+            # but ADCS servers often have certificates
+            # from private CAs that are locally trusted,
+            # so we try to find, and use, the system bundle
+            # instead. Fallback to requests own.
+            self.session.verify = _get_ca_bundle()
 
         if auth_method == "ntlm":
             from requests_ntlm import HttpNtlmAuth
@@ -275,6 +283,21 @@ class Certsrv(object):
                 raise
         return True
 
+def _get_ca_bundle():
+    """Tries to find the platform ca bundle for the system (on linux systems)"""
+    ca_bundles = [
+        # list taken from https://golang.org/src/crypto/x509/root_linux.go
+        "/etc/ssl/certs/ca-certificates.crt",                # Debian/Ubuntu/Gentoo etc.
+        "/etc/pki/tls/certs/ca-bundle.crt",                  # Fedora/RHEL 6
+        "/etc/ssl/ca-bundle.pem",                            # OpenSUSE
+        "/etc/pki/tls/cacert.pem",                           # OpenELEC
+        "/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem", # CentOS/RHEL 7
+    ]
+    for ca_bundle in ca_bundles:
+        if os.path.isfile(ca_bundle):
+            return ca_bundle
+    # if the bundle was not found, we revert back to requests own
+    return True
 
 def get_cert(server, csr, template, username, password, encoding="b64", **kwargs):
     """
