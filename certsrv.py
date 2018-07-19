@@ -40,7 +40,7 @@ class CertificatePendingException(Exception):
         Exception.__init__(
             self,
             "Your certificate request has been received. "
-            "However, you must wait for an administrator to issue the"
+            "However, you must wait for an administrator to issue the "
             "certificate you requested. Your Request Id is {}.".format(req_id),
         )
         self.req_id = req_id
