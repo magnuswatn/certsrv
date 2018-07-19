@@ -6,7 +6,7 @@ The tests are functional tests that must be run against an ADCS server. The fram
 ADCS setup
 ----------
 
-The ADCS server must be domain joind, so that it has template support, and it must have two templates - one that requires manual approval, and one that don't.
+The ADCS server must be domain joined, so that it has template support, and it must have two templates - one that requires manual approval, and one that don't.
 
 The IIS server must be set up to accept both NTLM and basic auth.
 
