@@ -1,6 +1,15 @@
 certsrv
 =======
 
+.. image:: https://travis-ci.org/magnuswatn/certsrv.svg?branch=v2
+    :target: https://travis-ci.org/magnuswatn/certsrv
+
+.. image:: https://codecov.io/gh/magnuswatn/certsrv/branch/v2/graph/badge.svg
+    :target: https://codecov.io/gh/magnuswatn/certsrv
+
+.. image:: https://badge.fury.io/py/certsrv.svg
+    :target: https://pypi.org/project/certsrv/
+
 It is quite normal to have an internal PKI based on the Microsoft AD
 Certificate Services, which work great with Windows, but not so much on
 other OSes. Users of other OSes must often manually create a CSR and
@@ -31,4 +40,3 @@ Documentation
 -------------
 
 See `Documentation <https://certsrv.readthedocs.org>`_
-
