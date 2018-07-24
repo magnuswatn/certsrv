@@ -90,8 +90,16 @@ class Certsrv(object):
             "User-agent": "Mozilla/5.0 certsrv (https://github.com/magnuswatn/certsrv)"
         }
 
+    def _post(self, url, **kwargs):
+        response = self.session.post(url, timeout=self.timeout, **kwargs)
+        return self._handle_response(response)
+
     def _get(self, url, **kwargs):
         response = self.session.get(url, timeout=self.timeout, **kwargs)
+        return self._handle_response(response)
+
+    @staticmethod
+    def _handle_response(response):
 
         logger.debug(
             "Sent %s request to %s, with headers:\n%s\n\nand body:\n%s",
@@ -149,7 +157,7 @@ class Certsrv(object):
 
         url = "https://{}/certsrv/certfnsh.asp".format(self.server)
 
-        response = self._get(url, data=data)
+        response = self._post(url, data=data)
 
         # We need to parse the Request ID from the returning HTML page
         try:
