@@ -149,7 +149,6 @@ class Certsrv(object):
             "Mode": "newreq",
             "CertRequest": csr,
             "CertAttrib": "CertificateTemplate:{}".format(template),
-            "UserAgent": "certsrv (https://github.com/magnuswatn/certsrv)",
             "FriendlyType": "Saved-Request Certificate",
             "TargetStoreFlags": "0",
             "SaveCert": "yes",
