@@ -127,7 +127,7 @@ class Certsrv(object):
 
         return response
 
-    def get_cert(self, csr, template, encoding="b64"):
+    def get_cert(self, csr, template, encoding="b64", attributes=None):
         """
         Gets a certificate from the server.
 
@@ -136,6 +136,8 @@ class Certsrv(object):
             template: The certificate template the cert should be issued from
             encoding: The desired encoding for the returned certificate.
                       Possible values are "bin" for binary and "b64" for Base64 (PEM)
+            attributes: Additional Attributes (request attibutes) to be sent along with
+                        the request.
 
         Returns:
             The issued certificate
@@ -145,10 +147,14 @@ class Certsrv(object):
             CertificatePendingException: If the request needs to be approved by a CA admin
             CouldNotRetrieveCertificateException: If something went wrong while fetching the cert
         """
+        cert_attrib = "CertificateTemplate:{}\r\n".format(template)
+        if attributes:
+            cert_attrib += attributes
+
         data = {
             "Mode": "newreq",
             "CertRequest": csr,
-            "CertAttrib": "CertificateTemplate:{}".format(template),
+            "CertAttrib": cert_attrib,
             "FriendlyType": "Saved-Request Certificate",
             "TargetStoreFlags": "0",
             "SaveCert": "yes",

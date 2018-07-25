@@ -151,6 +151,30 @@ def test_wrong_credentials_with_ntlm(opt_adcs, opt_username, opt_password):
         certsrv.get_existing_cert(opt_adcs, -1, 'wronguser', 'wrongpassword', auth_method='ntlm')
     assert excinfo.value.response.reason == 'Unauthorized'
 
+def test_get_cert_with_attributes(opt_adcs, opt_username, opt_password, opt_template):
+    """
+    Here we test that we can specify request attributes.
+
+    Our CSR has SAN "certsrv-test-cert.no", but here we override that with
+    request attributes, to "attr.no", so the final cert should have that SAN,
+    and not the one from the CSR.
+
+    This test requires the EDITF_ATTRIBUTESUBJECTALTNAME2 flag to be enabled on the CA.
+    """
+    csr = create_csr()
+    pem_csr = OpenSSL.crypto.dump_certificate_request(OpenSSL.crypto.FILETYPE_PEM, csr)
+    ca_server = certsrv.Certsrv(opt_adcs, opt_username, opt_password)
+
+    pem_cert = ca_server.get_cert(pem_csr, opt_template, attributes="san:dns=attr.no")
+    cert = OpenSSL.crypto.load_certificate(OpenSSL.crypto.FILETYPE_PEM, pem_cert)
+
+    san_extension = "this cert doesn't have a SAN name. wtf"
+    for i in range(0, cert.get_extension_count()):
+        if cert.get_extension(i).get_short_name().decode() == "subjectAltName":
+            san_extension = str(cert.get_extension(i))
+
+    assert san_extension == "DNS:attr.no"
+
 
 # The test cases assume that the system trusts the adcs server certificate.
 # So if these connection attempts fails, it means the custom cafile parameter works
