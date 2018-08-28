@@ -65,6 +65,7 @@ class Certsrv(object):
 
         self.server = server
         self.timeout = timeout
+        self.auth_method = auth_method
         self.session = requests.Session()
 
         if cafile:
@@ -77,18 +78,21 @@ class Certsrv(object):
             # instead. Fallback to requests own.
             self.session.verify = _get_ca_bundle()
 
-        if auth_method == "ntlm":
-            from requests_ntlm import HttpNtlmAuth
-
-            self.session.auth = HttpNtlmAuth(username, password)
-        else:
-            self.session.auth = (username, password)
+        self._set_credentials(username, password)
 
         # We need certsrv to think we are a browser, or otherwise the Content-Type of the
         # retrieved certificate will be wrong (for some reason)
         self.session.headers = {
             "User-agent": "Mozilla/5.0 certsrv (https://github.com/magnuswatn/certsrv)"
         }
+
+    def _set_credentials(self, username, password):
+        if self.auth_method == "ntlm":
+            from requests_ntlm import HttpNtlmAuth
+
+            self.session.auth = HttpNtlmAuth(username, password)
+        else:
+            self.session.auth = (username, password)
 
     def _post(self, url, **kwargs):
         response = self.session.post(url, timeout=self.timeout, **kwargs)
@@ -295,6 +299,21 @@ class Certsrv(object):
             else:
                 raise
         return True
+
+    def update_credentials(self, username, password):
+        """
+        Updates the credentials used against the ADCS server
+
+        Args:
+            username: The username for authentication
+            password: The password for authentication
+        """
+        if self.auth_method == "ntlm":
+            # NTLM is connection based,
+            # so we need to close the connection
+            # to be able to re-authenticate
+            self.session.close()
+        self._set_credentials(username, password)
 
 def _get_ca_bundle():
     """Tries to find the platform ca bundle for the system (on linux systems)"""

@@ -87,6 +87,18 @@ def test_check_credentials(opt_adcs, opt_username, opt_password):
 def test_check_wrong_credentials(opt_adcs):
     assert certsrv.check_credentials(opt_adcs, 'wronguser', 'wrongpassword') == False
 
+def test_update_and_check_credentials(opt_adcs, opt_username, opt_password):
+    certsrv_obj = certsrv.Certsrv(opt_adcs, "wronguser", "wrongpass")
+    assert certsrv_obj.check_credentials() == False
+    certsrv_obj.update_credentials(opt_username, opt_password)
+    assert certsrv_obj.check_credentials()
+
+def test_update_and_check_credentials_ntlm(opt_adcs, opt_username, opt_password):
+    certsrv_obj = certsrv.Certsrv(opt_adcs, "wronguser", "wrongpass", auth_method="ntlm")
+    assert certsrv_obj.check_credentials() == False
+    certsrv_obj.update_credentials(opt_username, opt_password)
+    assert certsrv_obj.check_credentials()
+
 def test_get_ca_cert_pem(opt_adcs, opt_username, opt_password):
     pem_cert = certsrv.get_ca_cert(opt_adcs, opt_username, opt_password)
     cert = OpenSSL.crypto.load_certificate(OpenSSL.crypto.FILETYPE_PEM, pem_cert)
