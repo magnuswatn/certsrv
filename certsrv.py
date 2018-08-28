@@ -133,7 +133,7 @@ class Certsrv(object):
 
     def get_cert(self, csr, template, encoding="b64", attributes=None):
         """
-        Gets a certificate from the server.
+        Gets a certificate from the ADCS server.
 
         Args:
             csr: The certificate request to submit
@@ -190,7 +190,7 @@ class Certsrv(object):
 
     def get_existing_cert(self, req_id, encoding="b64"):
         """
-        Gets a certificate that has already been created.
+        Gets a certificate that has already been created from the ADCS server.
 
         Args:
             req_id: The request ID to retrieve
@@ -224,7 +224,7 @@ class Certsrv(object):
 
     def get_ca_cert(self, encoding="b64"):
         """
-        Gets the (newest) CA certificate from a Microsoft AD Certificate Services web page.
+        Gets the (newest) CA certificate from the ADCS server.
 
         Args:
             encoding: The desired encoding for the returned certificate.
@@ -254,7 +254,7 @@ class Certsrv(object):
 
     def get_chain(self, encoding="bin"):
         """
-        Gets the chain from a Microsoft AD Certificate Services web page.
+        Gets the CA chain from the ADCS server.
 
         Args:
             encoding: The desired encoding for the returned certificates.
@@ -284,7 +284,7 @@ class Certsrv(object):
 
     def check_credentials(self):
         """
-        Checks the specified credentials against the specified ADCS server
+        Checks the specified credentials against the ADCS server.
 
         Returns:
             True if authentication succeeded, False if it failed.
@@ -302,7 +302,7 @@ class Certsrv(object):
 
     def update_credentials(self, username, password):
         """
-        Updates the credentials used against the ADCS server
+        Updates the credentials used against the ADCS server.
 
         Args:
             username: The username for authentication
@@ -368,7 +368,8 @@ def get_cert(server, csr, template, username, password, encoding="b64", **kwargs
 
 def get_existing_cert(server, req_id, username, password, encoding="b64", **kwargs):
     """
-    Gets a certificate that has already been created.
+    Gets a certificate that has already been created from a
+    Microsoft AD Certificate Services web page.
 
     Args:
         server: The FQDN to a server running the Certification Authority
@@ -453,7 +454,7 @@ def get_chain(server, username, password, encoding="bin", **kwargs):
 
 def check_credentials(server, username, password, **kwargs):
     """
-    Checks the specified credentials against the specified ADCS server
+    Checks the specified credentials against the specified ADCS server.
 
     Args:
         ca: The FQDN to a server running the Certification Authority
