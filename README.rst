@@ -1,10 +1,10 @@
 certsrv
 =======
 
-.. image:: https://travis-ci.org/magnuswatn/certsrv.svg?branch=v2
+.. image:: https://travis-ci.org/magnuswatn/certsrv.svg?branch=master
     :target: https://travis-ci.org/magnuswatn/certsrv
 
-.. image:: https://codecov.io/gh/magnuswatn/certsrv/branch/v2/graph/badge.svg
+.. image:: https://codecov.io/gh/magnuswatn/certsrv/branch/master/graph/badge.svg
     :target: https://codecov.io/gh/magnuswatn/certsrv
 
 .. image:: https://badge.fury.io/py/certsrv.svg
