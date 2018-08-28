@@ -16,7 +16,7 @@ def read_file(filename, encoding='utf8'):
 # read version number from the script
 here = os.path.abspath(os.path.dirname(__file__))
 script_path = os.path.join(here, 'certsrv.py')
-version = dict(re.findall(r"""__([a-z]+)__ = '([^']+)""", read_file(script_path)))['version']
+version = dict(re.findall(r"""__([a-z]+)__ = "([^"]+)""", read_file(script_path)))['version']
 
 readme = read_file(os.path.join(here, 'README.rst'))
 
@@ -31,8 +31,11 @@ setup(
     keywords='ad adcs certsrv pki certificate',
     version=version,
     py_modules=['certsrv'],
+    install_requires=[
+        'requests',
+        ],
     extras_require={
-        'ntlm': ['python-ntlm']
+        'ntlm': ['requests_ntlm'],
         },
     classifiers=[
         'Development Status :: 5 - Production/Stable',
@@ -40,11 +43,12 @@ setup(
         'Intended Audience :: Developers',
         'License :: OSI Approved :: MIT License',
         'Operating System :: POSIX :: Linux',
-        'Programming Language :: Python :: 2 :: Only',
         'Programming Language :: Python :: 2',
-        'Programming Language :: Python :: 2.5',
-        'Programming Language :: Python :: 2.6',
         'Programming Language :: Python :: 2.7',
+        'Programming Language :: Python :: 3',
+        'Programming Language :: Python :: 3.4',
+        'Programming Language :: Python :: 3.5',
+        'Programming Language :: Python :: 3.6',
         'Topic :: Internet :: WWW/HTTP',
         'Topic :: Security',
         'Topic :: Software Development :: Libraries',

@@ -29,6 +29,10 @@ function Install-ADCS {
 
     # enable basic auth
     Set-WebConfigurationProperty -Filter "/system.webServer/security/authentication/basicAuthentication" -Name Enabled -Value True -PSPath "IIS:\" -Location "Default Web Site/Certsrv"
+
+    # Add SAN specified as request attributes to the finished certificate
+    # This would not be a good idea in production, but we need it for some tests
+    certutil -setreg policy\EditFlags +EDITF_ATTRIBUTESUBJECTALTNAME2
 }
 
 

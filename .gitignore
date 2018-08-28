@@ -96,3 +96,6 @@ ENV/
 
 # Pytest
 .pytest_cache/
+
+# No need to have the Pipfile.lock checked in on libraries
+Pipfile.lock
