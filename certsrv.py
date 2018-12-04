@@ -10,7 +10,7 @@ import logging
 import warnings
 import requests
 
-__version__ = "2.0.0"
+__version__ = "2.1.0dev"
 
 logger = logging.getLogger(__name__)
 
@@ -55,9 +55,14 @@ class Certsrv(object):
                 Web Enrollment role (must be listening on https)
         username: The username for authentication
         password: The password for authentication
-        auth_method: The chosen authentication method. Either 'basic' (the default) or 'ntlm'
+        auth_method: The chosen authentication method. Either 'basic' (the default),
+                     'ntlm' or 'cert'
         cafile: A PEM file containing the CA certificates that should be trusted
         timeout: The timeout to use against the CA server, in seconds. The default is 30.
+
+    .. note:: If you use a client certificate for authentication (auth_method=cert),
+              the username parameter should be the path to a certificate file, and
+              the password parameter the path to a private key file.
     """
 
     def __init__(self, server, username, password, auth_method="basic",
@@ -91,6 +96,8 @@ class Certsrv(object):
             from requests_ntlm import HttpNtlmAuth
 
             self.session.auth = HttpNtlmAuth(username, password)
+        elif self.auth_method == "cert":
+            self.session.cert = (username, password)
         else:
             self.session.auth = (username, password)
 
@@ -308,8 +315,8 @@ class Certsrv(object):
             username: The username for authentication
             password: The password for authentication
         """
-        if self.auth_method == "ntlm":
-            # NTLM is connection based,
+        if self.auth_method in ("ntlm", "cert"):
+            # NTLM and SSL is connection based,
             # so we need to close the connection
             # to be able to re-authenticate
             self.session.close()
