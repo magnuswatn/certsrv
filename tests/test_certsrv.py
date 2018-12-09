@@ -5,6 +5,7 @@ import certsrv
 import OpenSSL
 
 from requests.exceptions import RequestException, SSLError
+from requests_ntlm import HttpNtlmAuth
 
 def create_csr():
     key = OpenSSL.crypto.PKey()
@@ -33,6 +34,17 @@ def check_cert_matches_csr_and_issuer(csr, cert, adcs, username, password):
 
 
 
+
+def test_auth_methods(opt_adcs, opt_username, opt_password):
+    basic_ca = certsrv.Certsrv("ca", "user", "pass", auth_method="basic")
+    cert_ca = certsrv.Certsrv("ca", "user", "pass", auth_method="cert")
+    ntlm_ca = certsrv.Certsrv("ca", "user", "pass", auth_method="ntlm")
+    assert basic_ca.session.auth == ("user", "pass")
+    assert basic_ca.session.cert == None
+    assert cert_ca.session.auth == None
+    assert cert_ca.session.cert == ("user", "pass")
+    assert ntlm_ca.session.cert == None
+    assert isinstance(ntlm_ca.session.auth, HttpNtlmAuth)
 
 def test_get_cert_pem(opt_adcs, opt_username, opt_password, opt_template):
     csr = create_csr()
