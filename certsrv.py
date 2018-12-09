@@ -52,17 +52,19 @@ class Certsrv(object):
 
     Args:
         server: The FQDN to a server running the Certification Authority
-                Web Enrollment role (must be listening on https)
-        username: The username for authentication
-        password: The password for authentication
+            Web Enrollment role (must be listening on https).
+        username: The username for authentication.
+        password: The password for authentication.
         auth_method: The chosen authentication method. Either 'basic' (the default),
-                     'ntlm' or 'cert'
-        cafile: A PEM file containing the CA certificates that should be trusted
-        timeout: The timeout to use against the CA server, in seconds. The default is 30.
+            'ntlm' or 'cert' (SSL client certificate).
+        cafile: A PEM file containing the CA certificates that should be trusted.
+        timeout: The timeout to use against the CA server, in seconds.
+            The default is 30.
 
-    .. note:: If you use a client certificate for authentication (auth_method=cert),
-              the username parameter should be the path to a certificate file, and
-              the password parameter the path to a private key file.
+    Note:
+        If you use a client certificate for authentication (auth_method=cert),
+        the username parameter should be the path to a certificate, and
+        the password parameter the path to a (unencrypted) private key.
     """
 
     def __init__(self, server, username, password, auth_method="basic",
@@ -85,8 +87,9 @@ class Certsrv(object):
 
         self._set_credentials(username, password)
 
-        # We need certsrv to think we are a browser, or otherwise the Content-Type of the
-        # retrieved certificate will be wrong (for some reason)
+        # We need certsrv to think we are a browser,
+        # or otherwise the Content-Type of the retrieved
+        # certificate will be wrong (for some reason).
         self.session.headers = {
             "User-agent": "Mozilla/5.0 certsrv (https://github.com/magnuswatn/certsrv)"
         }
@@ -143,20 +146,22 @@ class Certsrv(object):
         Gets a certificate from the ADCS server.
 
         Args:
-            csr: The certificate request to submit
-            template: The certificate template the cert should be issued from
+            csr: The certificate request to submit.
+            template: The certificate template the cert should be issued from.
             encoding: The desired encoding for the returned certificate.
-                      Possible values are "bin" for binary and "b64" for Base64 (PEM)
+                Possible values are 'bin' for binary and 'b64' for Base64 (PEM).
             attributes: Additional Attributes (request attibutes) to be sent along with
-                        the request.
+                the request.
 
         Returns:
-            The issued certificate
+            The issued certificate.
 
         Raises:
-            RequestDeniedException: If the request was denied by the ADCS server
-            CertificatePendingException: If the request needs to be approved by a CA admin
-            CouldNotRetrieveCertificateException: If something went wrong while fetching the cert
+            RequestDeniedException: If the request was denied by the ADCS server.
+            CertificatePendingException: If the request needs to be approved
+                by a CA admin.
+            CouldNotRetrieveCertificateException: If something went wrong while
+                fetching the cert.
         """
         cert_attrib = "CertificateTemplate:{0}\r\n".format(template)
         if attributes:
@@ -184,7 +189,8 @@ class Certsrv(object):
                 req_id = re.search(r"Your Request Id is (\d+).", response.text).group(1)
                 raise CertificatePendingException(req_id)
             else:
-                # Must have failed. Lets find the error message and raise a RequestDeniedException
+                # Must have failed. Lets find the error message
+                # and raise a RequestDeniedException.
                 try:
                     error = re.search(
                         r'The disposition message is "([^"]+)', response.text
@@ -200,15 +206,16 @@ class Certsrv(object):
         Gets a certificate that has already been created from the ADCS server.
 
         Args:
-            req_id: The request ID to retrieve
+            req_id: The request ID to retrieve.
             encoding: The desired encoding for the returned certificate.
-                    Possible values are "bin" for binary and "b64" for Base64 (PEM)
+                Possible values are 'bin' for binary and 'b64' for Base64 (PEM).
 
         Returns:
-            The issued certificate
+            The issued certificate.
 
         Raises:
-            CouldNotRetrieveCertificateException: If something went wrong while fetching the cert
+            CouldNotRetrieveCertificateException: If something went wrong
+                while fetching the cert.
         """
 
         cert_url = "https://{0}/certsrv/certnew.cer".format(self.server)
@@ -235,16 +242,17 @@ class Certsrv(object):
 
         Args:
             encoding: The desired encoding for the returned certificate.
-                    Possible values are "bin" for binary and "b64" for Base64 (PEM)
+                Possible values are 'bin' for binary and 'b64' for Base64 (PEM).
 
         Returns:
-            The newest CA certificate from the server
+            The newest CA certificate from the server.
         """
         url = "https://{0}/certsrv/certcarc.asp".format(self.server)
 
         response = self._get(url)
 
-        # We have to check how many renewals this server has had, so that we get the newest CA cert
+        # We have to check how many renewals this server has had,
+        # so that we get the newest CA cert.
         renewals = re.search(r"var nRenewals=(\d+);", response.text).group(1)
 
         cert_url = "https://{0}/certsrv/certnew.cer".format(self.server)
@@ -265,10 +273,10 @@ class Certsrv(object):
 
         Args:
             encoding: The desired encoding for the returned certificates.
-                    Possible values are "bin" for binary and "b64" for Base64 (PEM)
+                Possible values are 'bin' for binary and 'b64' for Base64 (PEM).
 
         Returns:
-            The CA chain from the server, in PKCS#7 format
+            The CA chain from the server, in PKCS#7 format.
         """
         url = "https://{0}/certsrv/certcarc.asp".format(self.server)
 
@@ -312,8 +320,8 @@ class Certsrv(object):
         Updates the credentials used against the ADCS server.
 
         Args:
-            username: The username for authentication
-            password: The password for authentication
+            username: The username for authentication.
+            password: The password for authentication.
         """
         if self.auth_method in ("ntlm", "cert"):
             # NTLM and SSL is connection based,
@@ -344,25 +352,28 @@ def get_cert(server, csr, template, username, password, encoding="b64", **kwargs
 
     Args:
         server: The FQDN to a server running the Certification Authority
-                Web Enrollment role (must be listening on https)
-        csr: The certificate request to submit
-        template: The certificate template the cert should be issued from
-        username: The username for authentication
-        pasword: The password for authentication
+            Web Enrollment role (must be listening on https).
+        csr: The certificate request to submit.
+        template: The certificate template the cert should be issued from.
+        username: The username for authentication.
+        pasword: The password for authentication.
         encoding: The desired encoding for the returned certificate.
-                  Possible values are "bin" for binary and "b64" for Base64 (PEM)
-        auth_method: The chosen authentication method. Either 'basic' (the default) or 'ntlm'
-        cafile: A PEM file containing the CA certificates that should be trusted
+            Possible values are 'bin' for binary and 'b64' for Base64 (PEM).
+        auth_method: The chosen authentication method. Either 'basic' (the default),
+            'ntlm' or 'cert' (ssl client certificate).
+        cafile: A PEM file containing the CA certificates that should be trusted.
 
     Returns:
-        The issued certificate
+        The issued certificate.
 
     Raises:
-        RequestDeniedException: If the request was denied by the ADCS server
-        CertificatePendingException: If the request needs to be approved by a CA admin
-        CouldNotRetrieveCertificateException: If something went wrong while fetching the cert
+        RequestDeniedException: If the request was denied by the ADCS server.
+        CertificatePendingException: If the request needs to be approved by a CA admin.
+        CouldNotRetrieveCertificateException: If something went wrong while
+            fetching the cert.
 
-    .. note:: This method is deprecated.
+    Note:
+        This method is deprecated.
 
     """
     warnings.warn(
@@ -380,22 +391,25 @@ def get_existing_cert(server, req_id, username, password, encoding="b64", **kwar
 
     Args:
         server: The FQDN to a server running the Certification Authority
-                Web Enrollment role (must be listening on https)
-        req_id: The request ID to retrieve
-        username: The username for authentication
-        pasword: The password for authentication
+            Web Enrollment role (must be listening on https).
+        req_id: The request ID to retrieve.
+        username: The username for authentication.
+        pasword: The password for authentication.
         encoding: The desired encoding for the returned certificate.
-                  Possible values are "bin" for binary and "b64" for Base64 (PEM)
-        auth_method: The chosen authentication method. Either 'basic' (the default) or 'ntlm'
-        cafile: A PEM file containing the CA certificates that should be trusted
+            Possible values are 'bin' for binary and 'b64' for Base64 (PEM).
+        auth_method: The chosen authentication method. Either 'basic' (the default),
+            'ntlm' or 'cert' (ssl client certificate).
+        cafile: A PEM file containing the CA certificates that should be trusted.
 
     Returns:
-        The issued certificate
+        The issued certificate.
 
     Raises:
-        CouldNotRetrieveCertificateException: If something went wrong while fetching the cert
+        CouldNotRetrieveCertificateException: If something went wrong while
+            fetching the cert.
 
-    .. note:: This method is deprecated.
+    Note:
+        This method is deprecated.
     """
     warnings.warn(
         "This function is deprecated. Use the method on the Certsrv class instead",
@@ -411,18 +425,20 @@ def get_ca_cert(server, username, password, encoding="b64", **kwargs):
 
     Args:
         server: The FQDN to a server running the Certification Authority
-            Web Enrollment role (must be listening on https)
-        username: The username for authentication
-        pasword: The password for authentication
+            Web Enrollment role (must be listening on https).
+        username: The username for authentication.
+        pasword: The password for authentication.
         encoding: The desired encoding for the returned certificate.
-                  Possible values are "bin" for binary and "b64" for Base64 (PEM)
-        auth_method: The chosen authentication method. Either 'basic' (the default) or 'ntlm'
-        cafile: A PEM file containing the CA certificates that should be trusted
+            Possible values are 'bin' for binary and 'b64' for Base64 (PEM).
+        auth_method: The chosen authentication method. Either 'basic' (the default),
+            'ntlm' or 'cert' (ssl client certificate).
+        cafile: A PEM file containing the CA certificates that should be trusted.
 
     Returns:
-        The newest CA certificate from the server
+        The newest CA certificate from the server.
 
-    .. note:: This method is deprecated.
+    Note:
+        This method is deprecated.
     """
     warnings.warn(
         "This function is deprecated. Use the method on the Certsrv class instead",
@@ -438,18 +454,20 @@ def get_chain(server, username, password, encoding="bin", **kwargs):
 
     Args:
         server: The FQDN to a server running the Certification Authority
-            Web Enrollment role (must be listening on https)
-        username: The username for authentication
-        pasword: The password for authentication
+            Web Enrollment role (must be listening on https).
+        username: The username for authentication.
+        pasword: The password for authentication.
         encoding: The desired encoding for the returned certificates.
-                  Possible values are "bin" for binary and "b64" for Base64 (PEM)
-        auth_method: The chosen authentication method. Either 'basic' (the default) or 'ntlm'
-        cafile: A PEM file containing the CA certificates that should be trusted
+            Possible values are 'bin' for binary and 'b64' for Base64 (PEM).
+        auth_method: The chosen authentication method. Either 'basic' (the default),
+            'ntlm' or 'cert' (ssl client certificate).
+        cafile: A PEM file containing the CA certificates that should be trusted.
 
     Returns:
-        The CA chain from the server, in PKCS#7 format
+        The CA chain from the server, in PKCS#7 format.
 
-    .. note:: This method is deprecated.
+    Note:
+        This method is deprecated.
     """
     warnings.warn(
         "This function is deprecated. Use the method on the Certsrv class instead",
@@ -465,16 +483,18 @@ def check_credentials(server, username, password, **kwargs):
 
     Args:
         ca: The FQDN to a server running the Certification Authority
-            Web Enrollment role (must be listening on https)
-        username: The username for authentication
-        pasword: The password for authentication
-        auth_method: The chosen authentication method. Either 'basic' (the default) or 'ntlm'
-        cafile: A PEM file containing the CA certificates that should be trusted
+            Web Enrollment role (must be listening on https).
+        username: The username for authentication.
+        pasword: The password for authentication.
+        auth_method: The chosen authentication method. Either 'basic' (the default),
+            'ntlm' or 'cert' (ssl client certificate).
+        cafile: A PEM file containing the CA certificates that should be trusted.
 
     Returns:
         True if authentication succeeded, False if it failed.
 
-    .. note:: This method is deprecated.
+    Note:
+        This method is deprecated.
     """
     warnings.warn(
         "This function is deprecated. Use the method on the Certsrv class instead",

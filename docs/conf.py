@@ -51,7 +51,7 @@ master_doc = 'index'
 
 # General information about the project.
 project = u'certsrv'
-copyright = u'2017, Magnus Watn'
+copyright = u'2018, Magnus Watn'
 author = u'Magnus Watn'
 
 # The version info for the project you're documenting, acts as replacement for
