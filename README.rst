@@ -29,12 +29,17 @@ Installation
     $ pip install certsrv
 
 
-Or, if you want NTLM support:
+if you want NTLM support:
 
 .. code-block:: bash
 
     $ pip install certsrv[ntlm]
 
+Or if you want GSSAPI (kerberos) support:
+
+.. code-block:: bash
+
+    $ pip install certsrv[gssapi]
 
 Documentation
 -------------
