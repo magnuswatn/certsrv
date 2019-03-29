@@ -24,7 +24,9 @@ Prerequisites
 
 The IIS server must listen on HTTPS with a valid (trusted by the client)
 certificate. It is recommended to enable basic auth on IIS, but NTLM is
-also supported through the `requests_ntlm package <https://pypi.org/project/requests_ntlm/>`_
+also supported through the `requests_ntlm package <https://pypi.org/project/requests_ntlm/>`_.
+You can also use kerberos through `requests-gssapi package <https://pypi.org/project/requests-gssapi/>`_.
+for this to work, you'll need a valid TGT, which you can create using kinit
 
 Disclaimer
 ----------
