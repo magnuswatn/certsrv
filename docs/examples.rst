@@ -120,3 +120,18 @@ Examples
 
     print("Cert:\n{}".format(pem_cert.decode()))
     print("Key:\n{}".format(pem_key.decode()))
+
+**Get the CA cert from an untrusted ADCS server:**
+
+.. code:: python
+
+    from certsrv import Certsrv
+
+    ca_server = Certsrv("my-adcs-server.example.net", "myUser", "myPassword")
+    #if we are trying to get a CA Cert that isn't in our CA bundle, we need to disable checking the SSL Cert
+    ca_server.session.verify = False
+
+    #get the CA cert
+    ca_cert = ca_server.get_ca_cert()
+
+    print("CA Cert:\n{}".format(ca_cert.decode()))
