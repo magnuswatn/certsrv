@@ -36,6 +36,7 @@ setup(
         ],
     extras_require={
         'ntlm': ['requests_ntlm'],
+        'gssapi': ['requests-gssapi'],
         },
     classifiers=[
         'Development Status :: 5 - Production/Stable',
