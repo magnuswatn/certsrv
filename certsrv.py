@@ -10,7 +10,7 @@ import logging
 import warnings
 import requests
 
-__version__ = "2.2"
+__version__ = "2.2.0"
 
 logger = logging.getLogger(__name__)
 
