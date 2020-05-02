@@ -17,4 +17,3 @@ before_test:
 
 test_script:
 - ps: tests/test_setup_adcs.ps1
-- tox
