@@ -10,6 +10,7 @@ function main {
     "Installing Active Directory Domain Services"
     Install-ADDS
     Restart-Computer
+    Start-Sleep -Seconds 120
 }
 
 main
