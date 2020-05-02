@@ -16,8 +16,6 @@
 .NOTES
     Magnus Watn <magnus@watn.no>
 #>
-Param([Parameter(mandatory=$true)][String]$Email,
-      [Parameter(mandatory=$true)][String]$DnsName)
 
 
 function Install-ADCS {
@@ -92,6 +90,6 @@ if (!((Get-WindowsFeature AD-Domain-Services).Installed)) {
     "Installing Active Directory Certificate Services"
     Install-ADCS
     "Installing Let's Encrypt certificate"
-    Install-ACMECertificate $Email $DnsName
+#    Install-ACMECertificate $Email $DnsName
     "Done. Remember to create the WebServer_Manual template"
 }

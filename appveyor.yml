@@ -12,5 +12,8 @@ build: off
 install:
 - pip install tox
 
+before_test:
+- ps: tests/test_setup_adcs.ps1
+
 test_script:
 - tox
