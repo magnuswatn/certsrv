@@ -86,6 +86,7 @@ function Install-ACMECertificate($mail, $dns) {
 if (!((Get-WindowsFeature AD-Domain-Services).Installed)) {
     "Installing Active Directory Domain Services"
     Install-ADDS
+    Restart-Computer
 } else {
     "Installing Active Directory Certificate Services"
     Install-ADCS
