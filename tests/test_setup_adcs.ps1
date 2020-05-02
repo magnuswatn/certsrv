@@ -33,16 +33,6 @@ function Install-ADCS {
     certutil -setreg policy\EditFlags +EDITF_ATTRIBUTESUBJECTALTNAME2
 }
 
-
-function Install-ADDS {
-    Add-WindowsFeature AD-Domain-Services
-
-    Import-Module ADDSDeployment
-    $password = ConvertTo-SecureString "SuperSikkertPassord123" -AsPlainText -Force
-    Install-ADDSForest -DomainName certsrvtest.local -SafeModeAdministratorPassword $password -Force
-}
-
-
 function Install-ACMECertificate($mail, $dns) {
 
     Install-PackageProvider -Name NuGet -Force
@@ -82,15 +72,9 @@ function Install-ACMECertificate($mail, $dns) {
     Import-PfxCertificate -FilePath $certPath -CertStoreLocation Cert:\LocalMachine\My | New-Item IIS:\SslBindings\0.0.0.0!443
 }
 
-
-if (!((Get-WindowsFeature AD-Domain-Services).Installed)) {
-    "Installing Active Directory Domain Services"
-    Install-ADDS
-    Restart-Computer
-} else {
+function main {
     "Installing Active Directory Certificate Services"
     Install-ADCS
-    "Installing Let's Encrypt certificate"
-#    Install-ACMECertificate $Email $DnsName
-    "Done. Remember to create the WebServer_Manual template"
 }
+
+main

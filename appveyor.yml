@@ -13,7 +13,7 @@ install:
 - pip install tox
 
 before_test:
-- ps: tests/test_setup_adcs.ps1
+- ps: tests/test_setup_adds.ps1
 - ps: tests/test_setup_adcs.ps1
 
 test_script:
