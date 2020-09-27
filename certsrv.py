@@ -9,6 +9,7 @@ import base64
 import logging
 import warnings
 import requests
+from lxml import etree
 
 __version__ = "2.1.1"
 
@@ -296,6 +297,22 @@ class Certsrv(object):
             )
 
         return chain_response.content
+
+    def get_templates(self):
+        """
+        Gets a list of available templates from the ADCS server.
+        Returns:
+            An array of template names available to the authenticated identity.
+        """
+        url = "https://{0}/certsrv/certrqxt.asp".format(self.server)
+        response = self._get(url)
+ 
+        # Use lxml to parse the html elements
+        html = etree.HTML(response.content)
+        find_options = etree.XPath("//select//option")
+        templates = [option.text for option in find_options(html)]
+ 
+        return templates
 
     def check_credentials(self):
         """
