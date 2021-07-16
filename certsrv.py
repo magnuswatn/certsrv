@@ -68,12 +68,13 @@ class Certsrv(object):
     """
 
     def __init__(self, server, username, password, auth_method="basic",
-                 cafile=None, timeout=TIMEOUT):
+                 cafile=None, timeout=TIMEOUT, proxies=None):
 
         self.server = server
         self.timeout = timeout
         self.auth_method = auth_method
         self.session = requests.Session()
+        self.proxies = proxies
 
         if cafile:
             self.session.verify = cafile
@@ -105,11 +106,11 @@ class Certsrv(object):
             self.session.auth = (username, password)
 
     def _post(self, url, **kwargs):
-        response = self.session.post(url, timeout=self.timeout, **kwargs)
+        response = self.session.post(url, timeout=self.timeout, proxies=self.proxies, **kwargs)
         return self._handle_response(response)
 
     def _get(self, url, **kwargs):
-        response = self.session.get(url, timeout=self.timeout, **kwargs)
+        response = self.session.get(url, timeout=self.timeout, proxies=self.proxies, **kwargs)
         return self._handle_response(response)
 
     @staticmethod
